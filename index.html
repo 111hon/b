@@ -937,7 +937,7 @@
             const minute = marketTime.getMinutes();
             const day = marketTime.getDay();
             
-            isMarketOpen = (day >= 1 && day <= 5) && (hour >= 9 && hour < 16);
+            isMarketOpen = (day >= 1 && day <= 7) && (hour >= 1 && hour < 23);
             
             const indicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('statusText');
