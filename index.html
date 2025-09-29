@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5">
+    <title>真實股票投資模擬器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: #f5f7fa;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        @media (max-width: 1024px) {
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .header > div {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        h1 {
+            color: #1e3c72;
+            font-size: 2.5em;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .market-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.open {
+            background: #28a745;
+            box-shadow: 0 0 10px #28a745;
+        }
+        
+        .status-indicator.closed {
+            background: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .status-text {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .market-time {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card h3 {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-card .sub-value {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .save-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(102, 126, 234, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .save-indicator.show {
+            display: flex;
+            animation: fadeInOut 2s ease;
+        }
+        
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translateY(20px); }
+            10%, 90% { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chart-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .chart-panel h2 {
+            color: #1e3c72;
+            font-size: 1.5em;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chart-controls button {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .chart-controls button.active,
+        .chart-controls button:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .chart-container {
+            background: #fafbfc;
+            padding: 20px;
+            border-radius: 12px;
+            height: 450px;
+            position: relative;
+        }
+        
+        .market-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .market-panel h2 {
+            color: #1e3c72;
+            margin-bottom: 25px;
+            font-size: 1.5em;
+        }
+        
+        .stock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .stock-card {
+            background: #fafbfc;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s;
+            position: relative;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .stock-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            border-color: #667eea;
+        }
+        
+        .stock-card.selected {
+            border: 3px solid #667eea;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            background: white;
+        }
+        
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 18px;
+        }
+        
+        .stock-symbol {
+            font-weight: bold;
+            font-size: 1.4em;
+            color: #1e3c72;
+        }
+        
+        .stock-name {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .stock-sector {
+            font-size: 0.75em;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .stock-price-info {
+            text-align: right;
+        }
+        
+        .current-price {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .price-change {
+            font-size: 0.9em;
+            padding: 5px 10px;
+            border-radius: 6px;
+            margin-top: 6px;
+            display: inline-block;
+            font-weight: 600;
+        }
+        
+        .price-change.up {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .price-change.down {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .price-change.neutral {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .stock-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 0.85em;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .mini-chart {
+            height: 80px;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            padding: 5px;
+        }
+        
+        .holding-info {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .holding-info strong {
+            color: #1565c0;
+        }
+        
+        .trade-controls {
+            margin-top: 20px;
+        }
+        
+        .quantity-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        
+        .quantity-input button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            font-size: 1.3em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .quantity-input button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .quantity-input input {
+            flex: 1;
+            border: 2px solid #e0e0e0;
+            background: white;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        
+        .quick-amount {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .quick-amount button {
+            padding: 8px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .quick-amount button:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .cost-info {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.85em;
+        }
+        
+        .cost-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        .cost-row.total {
+            font-weight: bold;
+            font-size: 1.1em;
+            padding-top: 8px;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 8px;
+            color: #1e3c72;
+        }
+        
+        .trade-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .btn-trade {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-buy {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-buy:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+        
+        .btn-sell {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-sell:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+        }
+        
+        .btn-trade:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .message {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 18px 35px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+            animation: slideDown 0.4s ease;
+            min-width: 300px;
+            text-align: center;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translate(-50%, -150%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+        
+        .message.success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border: 3px solid #28a745;
+        }
+        
+        .message.error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border: 3px solid #dc3545;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .profit-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .profit-badge.positive {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+        
+        .profit-badge.negative {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+        }
+        
+        .transaction-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .transaction-panel h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .transaction-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .transaction-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #fafbfc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .transaction-item.buy {
+            border-left-color: #28a745;
+        }
+        
+        .transaction-item.sell {
+            border-left-color: #dc3545;
+        }
+        
+        .transaction-info {
+            flex: 1;
+        }
+        
+        .transaction-type {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        
+        .transaction-details {
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        .transaction-amount {
+            text-align: right;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .volume-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .volume-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 真實股票投資模擬器</h1>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <div class="market-status">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <div>
+                        <div class="status-text" id="statusText">載入中...</div>
+                        <div class="market-time" id="marketTime"></div>
+                    </div>
+                </div>
+                <button onclick="exportData()" style="padding: 12px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                    📥 匯出
+                </button>
+                <button onclick="importData()" style="padding: 12px 20px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                    📤 匯入
+                </button>
+                <button onclick="resetGame()" style="padding: 12px 20px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                    🔄 重置
+                </button>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="stat-card">
+                <h3>總資產</h3>
+                <div class="value" id="totalAssets">$100,000.00</div>
+                <div class="sub-value" id="totalReturn">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>可用現金</h3>
+                <div class="value" id="cash">$100,000.00</div>
+                <div class="sub-value">餘額</div>
+            </div>
+            <div class="stat-card">
+                <h3>持股市值</h3>
+                <div class="value" id="stockValue">$0.00</div>
+                <div class="sub-value" id="stockCount">0 檔股票</div>
+            </div>
+            <div class="stat-card">
+                <h3>今日損益</h3>
+                <div class="value" id="todayProfit">$0.00</div>
+                <div class="sub-value" id="todayReturn">0.00%</div>
+            </div>
+            <div class="stat-card">
+                <h3>總損益</h3>
+                <div class="value" id="totalProfit">$0.00</div>
+                <div class="sub-value" id="profitPercent">0.00%</div>
+            </div>
+        </div>
+        
+        <div id="message" class="message hidden"></div>
+        <div id="saveIndicator" class="save-indicator">💾 數據已自動儲存</div>
+        
+        <div class="chart-panel">
+            <div class="chart-header">
+                <h2 id="chartTitle">📊 投資組合總資產走勢</h2>
+                <div class="chart-controls">
+                    <button class="active" onclick="changeTimeframe('all')">全部</button>
+                    <button onclick="changeTimeframe('day')">今日</button>
+                    <button onclick="changeTimeframe('week')">一週</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="mainChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="market-panel">
+            <h2>💹 市場行情（點擊查看詳細走勢）</h2>
+            <div class="stock-grid" id="stockGrid"></div>
+        </div>
+        
+        <div class="transaction-panel">
+            <h2>📋 交易記錄</h2>
+            <div class="transaction-list" id="transactionList">
+                <div style="text-align: center; color: #999; padding: 40px;">尚無交易記錄</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const stocks = {
+            'AAPL': { name: '蘋果公司', sector: '科技', price: 175.50, basePrice: 175.50, change: 0, history: [], volume: 0, volatility: 0.015, trend: 0 },
+            'GOOGL': { name: 'Alphabet', sector: '科技', price: 142.30, basePrice: 142.30, change: 0, history: [], volume: 0, volatility: 0.018, trend: 0 },
+            'MSFT': { name: '微軟', sector: '科技', price: 415.20, basePrice: 415.20, change: 0, history: [], volume: 0, volatility: 0.012, trend: 0 },
+            'TSLA': { name: '特斯拉', sector: '汽車', price: 248.75, basePrice: 248.75, change: 0, history: [], volume: 0, volatility: 0.035, trend: 0 },
+            'AMZN': { name: '亞馬遜', sector: '電商', price: 178.90, basePrice: 178.90, change: 0, history: [], volume: 0, volatility: 0.020, trend: 0 },
+            'NVDA': { name: '輝達', sector: '半導體', price: 485.60, basePrice: 485.60, change: 0, history: [], volume: 0, volatility: 0.028, trend: 0 },
+            'META': { name: 'Meta', sector: '社群媒體', price: 512.30, basePrice: 512.30, change: 0, history: [], volume: 0, volatility: 0.022, trend: 0 },
+            'NFLX': { name: '網飛', sector: '串流媒體', price: 625.40, basePrice: 625.40, change: 0, history: [], volume: 0, volatility: 0.025, trend: 0 }
+        };
+
+        const COMMISSION_RATE = 0.001425;
+        const TAX_RATE = 0.003;
+        const INITIAL_CASH = 100000;
+
+        let cash = INITIAL_CASH;
+        let portfolio = {};
+        let quantities = {};
+        let portfolioHistory = [];
+        let selectedStock = null;
+        let mainChart = null;
+        let miniCharts = {};
+        let isMarketOpen = true;
+        let marketTime = new Date();
+        let transactions = [];
+        let timeframe = 'all';
+        let dayStartAssets = INITIAL_CASH;
+
+        Object.keys(stocks).forEach(symbol => {
+            quantities[symbol] = 1;
+            for (let i = 0; i < 50; i++) {
+                stocks[symbol].history.push(stocks[symbol].price);
+            }
+            stocks[symbol].trend = (Math.random() - 0.5) * 0.002;
+        });
+
+        portfolioHistory.push({value: INITIAL_CASH, time: new Date()});
+
+        // 從 localStorage 載入數據
+        function loadData() {
+            try {
+                const saved = localStorage.getItem('stockSimulatorData');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    cash = data.cash || INITIAL_CASH;
+                    portfolio = data.portfolio || {};
+                    transactions = data.transactions || [];
+                    portfolioHistory = data.portfolioHistory || [{value: INITIAL_CASH, time: new Date()}];
+                    dayStartAssets = data.dayStartAssets || INITIAL_CASH;
+                    
+                    // 還原時間物件
+                    portfolioHistory = portfolioHistory.map(h => ({
+                        value: h.value,
+                        time: new Date(h.time)
+                    }));
+                    
+                    transactions = transactions.map(t => ({
+                        ...t,
+                        time: new Date(t.time)
+                    }));
+                    
+                    console.log('✅ 已從 localStorage 載入數據');
+                    showMessage('✅ 已載入上次的投資記錄', 'success');
+                } else {
+                    console.log('ℹ️ 沒有找到暫存數據，使用預設值');
+                }
+            } catch (error) {
+                console.error('❌ 載入數據失敗:', error);
+                showMessage('⚠️ 載入數據失敗，使用預設值', 'error');
+            }
+        }
+
+        // 儲存數據到 localStorage
+        function saveGameData() {
+            try {
+                const dataToSave = {
+                    cash: cash,
+                    portfolio: portfolio,
+                    transactions: transactions,
+                    portfolioHistory: portfolioHistory,
+                    dayStartAssets: dayStartAssets,
+                    lastSaved: new Date().toISOString()
+                };
+                
+                localStorage.setItem('stockSimulatorData', JSON.stringify(dataToSave));
+                
+                // 顯示儲存提示
+                const indicator = document.getElementById('saveIndicator');
+                indicator.classList.add('show');
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 2000);
+                
+                console.log('💾 數據已儲存到 localStorage');
+            } catch (error) {
+                console.error('❌ 儲存數據失敗:', error);
+                if (error.name === 'QuotaExceededError') {
+                    showMessage('⚠️ 儲存空間不足，請清理部分歷史數據', 'error');
+                }
+            }
+        }
+
+        // 重置遊戲
+        function resetGame() {
+            if (confirm('⚠️ 確定要重置所有數據嗎？此操作無法復原！')) {
+                cash = INITIAL_CASH;
+                portfolio = {};
+                transactions = [];
+                portfolioHistory = [{value: INITIAL_CASH, time: new Date()}];
+                dayStartAssets = INITIAL_CASH;
+                
+                // 清除 localStorage
+                localStorage.removeItem('stockSimulatorData');
+                
+                renderStocks();
+                updateDashboard();
+                renderTransactions();
+                updateMainChart();
+                
+                showMessage('🔄 已重置所有數據', 'success');
+                console.log('🔄 已清除 localStorage 數據');
+            }
+        }
+
+        // 匯出數據
+        function exportData() {
+            const dataStr = JSON.stringify({
+                cash: cash,
+                portfolio: portfolio,
+                transactions: transactions,
+                portfolioHistory: portfolioHistory,
+                exportTime: new Date().toISOString(),
+                version: '1.0'
+            }, null, 2);
+            
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `stock-portfolio-${Date.now()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showMessage('📥 投資組合已匯出', 'success');
+        }
+
+        // 匯入數據
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        
+                        if (confirm('⚠️ 匯入數據會覆蓋現有數據，確定要繼續嗎？')) {
+                            cash = data.cash || INITIAL_CASH;
+                            portfolio = data.portfolio || {};
+                            transactions = data.transactions || [];
+                            portfolioHistory = data.portfolioHistory || [{value: INITIAL_CASH, time: new Date()}];
+                            dayStartAssets = data.dayStartAssets || INITIAL_CASH;
+                            
+                            // 還原時間物件
+                            portfolioHistory = portfolioHistory.map(h => ({
+                                value: h.value,
+                                time: new Date(h.time)
+                            }));
+                            
+                            transactions = transactions.map(t => ({
+                                ...t,
+                                time: new Date(t.time)
+                            }));
+                            
+                            saveGameData();
+                            renderStocks();
+                            updateDashboard();
+                            renderTransactions();
+                            updateMainChart();
+                            
+                            showMessage('✅ 數據匯入成功', 'success');
+                        }
+                    } catch (error) {
+                        console.error('❌ 匯入失敗:', error);
+                        showMessage('❌ 匯入失敗，檔案格式錯誤', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function updateMarketStatus() {
+            const hour = marketTime.getHours();
+            const minute = marketTime.getMinutes();
+            const day = marketTime.getDay();
+            
+            isMarketOpen = (day >= 1 && day <= 5) && (hour >= 9 && hour < 16);
+            
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const timeText = document.getElementById('marketTime');
+            
+            if (isMarketOpen) {
+                indicator.className = 'status-indicator open';
+                statusText.textContent = '🟢 市場開盤中';
+            } else {
+                indicator.className = 'status-indicator closed';
+                statusText.textContent = '🔴 市場休市';
+            }
+            
+            timeText.textContent = marketTime.toLocaleString('zh-TW', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function updateStockPrices() {
+            if (!isMarketOpen) {
+                marketTime.setMinutes(marketTime.getMinutes() + 1);
+                updateMarketStatus();
+                return;
+            }
+
+            Object.keys(stocks).forEach(symbol => {
+                const stock = stocks[symbol];
+                
+                const trendComponent = stock.trend;
+                const randomComponent = (Math.random() - 0.5) * stock.volatility;
+                const changePercent = trendComponent + randomComponent;
+                
+                stock.price *= (1 + changePercent);
+                
+                const maxChange = 0.10;
+                const minPrice = stock.basePrice * (1 - maxChange);
+                const maxPrice = stock.basePrice * (1 + maxChange);
+                stock.price = Math.max(minPrice, Math.min(maxPrice, stock.price));
+                
+                stock.change = ((stock.price - stock.basePrice) / stock.basePrice) * 100;
+                
+                stock.volume = Math.floor(Math.random() * 1000000) + 500000;
+                
+                stock.history.push(stock.price);
+                if (stock.history.length > 100) {
+                    stock.history.shift();
+                }
+                
+                if (Math.random() < 0.1) {
+                    stock.trend = (Math.random() - 0.5) * 0.002;
+                }
+            });
+            
+            let stockValue = 0;
+            Object.keys(portfolio).forEach(symbol => {
+                stockValue += portfolio[symbol].quantity * stocks[symbol].price;
+            });
+            const totalAssets = cash + stockValue;
+            portfolioHistory.push({value: totalAssets, time: new Date(marketTime)});
+            if (portfolioHistory.length > 200) {
+                portfolioHistory.shift();
+            }
+            
+            marketTime.setSeconds(marketTime.getSeconds() + 30);
+            updateMarketStatus();
+            renderStocks();
+            updateDashboard();
+            updateMainChart();
+        }
+
+        function createMainChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            mainChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '總資產',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#667eea'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        },
+                        x: {
+                            display: true,
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        function changeTimeframe(tf) {
+            timeframe = tf;
+            document.querySelectorAll('.chart-controls button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            updateMainChart();
+        }
+
+        function updateMainChart() {
+            if (!mainChart) return;
+            
+            let data, labels;
+            
+            if (selectedStock) {
+                const stock = stocks[selectedStock];
+                let history = stock.history;
+                
+                if (timeframe === 'day') {
+                    history = history.slice(-20);
+                } else if (timeframe === 'week') {
+                    history = history.slice(-50);
+                }
+                
+                data = history;
+                labels = history.map((_, i) => '');
+                
+                mainChart.data.labels = labels;
+                mainChart.data.datasets[0].data = data;
+                mainChart.data.datasets[0].label = `${selectedStock} - ${stock.name}`;
+                mainChart.data.datasets[0].borderColor = stock.change >= 0 ? '#28a745' : '#dc3545';
+                mainChart.data.datasets[0].backgroundColor = stock.change >= 0 ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)';
+                mainChart.data.datasets[0].pointBackgroundColor = stock.change >= 0 ? '#28a745' : '#dc3545';
+            } else {
+                let history = portfolioHistory;
+                
+                if (timeframe === 'day') {
+                    history = history.slice(-20);
+                } else if (timeframe === 'week') {
+                    history = history.slice(-50);
+                }
+                
+                data = history.map(h => h.value);
+                labels = history.map(h => h.time.toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit'}));
+                
+                mainChart.data.labels = labels;
+                mainChart.data.datasets[0].data = data;
+                mainChart.data.datasets[0].label = '總資產';
+                mainChart.data.datasets[0].borderColor = '#667eea';
+                mainChart.data.datasets[0].backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                mainChart.data.datasets[0].pointBackgroundColor = '#667eea';
+            }
+            
+            mainChart.update('none');
+        }
+
+        function selectStock(symbol) {
+            if (selectedStock === symbol) {
+                selectedStock = null;
+                document.getElementById('chartTitle').textContent = '📊 投資組合總資產走勢';
+            } else {
+                selectedStock = symbol;
+                document.getElementById('chartTitle').textContent = `📊 ${symbol} - ${stocks[symbol].name} 價格走勢圖`;
+            }
+            updateMainChart();
+            renderStocks();
+        }
+
+        function renderStocks() {
+            const grid = document.getElementById('stockGrid');
+            grid.innerHTML = '';
+            
+            Object.keys(stocks).forEach(symbol => {
+                const stock = stocks[symbol];
+                const holding = portfolio[symbol];
+                const quantity = quantities[symbol];
+                
+                let changeClass = 'neutral';
+                if (stock.change > 0.1) changeClass = 'up';
+                else if (stock.change < -0.1) changeClass = 'down';
+                
+                const changeSign = stock.change >= 0 ? '+' : '';
+                
+                const subtotal = stock.price * quantity;
+                const commission = subtotal * COMMISSION_RATE;
+                const totalCost = subtotal + commission;
+                
+                let profitBadge = '';
+                if (holding) {
+                    const currentValue = stock.price * holding.quantity;
+                    const cost = holding.totalCost;
+                    const profit = currentValue - cost;
+                    const profitPercent = (profit / cost) * 100;
+                    const profitClass = profit >= 0 ? 'positive' : 'negative';
+                    profitBadge = `<div class="profit-badge ${profitClass}">${profit >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%</div>`;
+                }
+                
+                const volumePercent = Math.min((stock.volume / 2000000) * 100, 100);
+                
+                const card = document.createElement('div');
+                card.className = 'stock-card' + (selectedStock === symbol ? ' selected' : '');
+                card.innerHTML = `
+                    ${profitBadge}
+                    <div onclick="selectStock('${symbol}')">
+                        <div class="stock-header">
+                            <div>
+                                <div class="stock-symbol">${symbol}</div>
+                                <div class="stock-name">${stock.name}</div>
+                                <div class="stock-sector">${stock.sector}</div>
+                            </div>
+                            <div class="stock-price-info">
+                                <div class="current-price">$${stock.price.toFixed(2)}</div>
+                                <span class="price-change ${changeClass}">${changeSign}${stock.change.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stock-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">開盤</span>
+                                <span class="stat-value">$${stock.basePrice.toFixed(2)}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">成交量</span>
+                                <span class="stat-value">${(stock.volume / 1000).toFixed(0)}K</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">最高</span>
+                                <span class="stat-value">$${(Math.max(...stock.history.slice(-20))).toFixed(2)}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">最低</span>
+                                <span class="stat-value">$${(Math.min(...stock.history.slice(-20))).toFixed(2)}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="volume-bar">
+                            <div class="volume-fill" style="width: ${volumePercent}%"></div>
+                        </div>
+                        
+                        <div class="mini-chart">
+                            <canvas id="mini-${symbol}"></canvas>
+                        </div>
+                    </div>
+                    
+                    ${holding ? `
+                        <div class="holding-info">
+                            📊 持有 <strong>${holding.quantity}</strong> 股 | 
+                            成本 <strong>$${holding.avgPrice.toFixed(2)}</strong> | 
+                            市值 <strong>$${(stock.price * holding.quantity).toFixed(2)}</strong>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="trade-controls">
+                        <div class="quantity-input">
+                            <button onclick="changeQuantity('${symbol}', -1)">−</button>
+                            <input type="number" value="${quantity}" min="1" 
+                                   onchange="updateQuantity('${symbol}', this.value)">
+                            <button onclick="changeQuantity('${symbol}', 1)">+</button>
+                        </div>
+                    </div>
+                    
+                    <div class="quick-amount">
+                        <button onclick="setQuantity('${symbol}', 1)">1股</button>
+                        <button onclick="setQuantity('${symbol}', 10)">10股</button>
+                        <button onclick="setQuantity('${symbol}', 100)">100股</button>
+                        <button onclick="setQuantity('${symbol}', Math.floor(cash / ${stock.price}))">全買</button>
+                    </div>
+                    
+                    <div class="cost-info">
+                        <div class="cost-row">
+                            <span>股價 × 數量</span>
+                            <span>$${subtotal.toFixed(2)}</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>手續費 (0.1425%)</span>
+                            <span>$${commission.toFixed(2)}</span>
+                        </div>
+                        <div class="cost-row total">
+                            <span>買入總計</span>
+                            <span>$${totalCost.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="trade-buttons">
+                        <button class="btn-trade btn-buy" onclick="buyStock('${symbol}')" ${!isMarketOpen ? 'disabled' : ''}>
+                            💰 買入
+                        </button>
+                        <button class="btn-trade btn-sell" onclick="sellStock('${symbol}')" 
+                                ${!holding || !isMarketOpen ? 'disabled' : ''}>
+                            💸 賣出
+                        </button>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+                
+                setTimeout(() => createMiniChart(symbol), 0);
+            });
+        }
+
+        function createMiniChart(symbol) {
+            const canvas = document.getElementById(`mini-${symbol}`);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const stock = stocks[symbol];
+            
+            if (miniCharts[symbol]) {
+                miniCharts[symbol].destroy();
+            }
+            
+            miniCharts[symbol] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(stock.history.length).fill(''),
+                    datasets: [{
+                        data: stock.history.slice(-30),
+                        borderColor: stock.change >= 0 ? '#28a745' : '#dc3545',
+                        backgroundColor: stock.change >= 0 ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        y: { display: false },
+                        x: { display: false }
+                    }
+                }
+            });
+        }
+
+        function changeQuantity(symbol, delta) {
+            quantities[symbol] = Math.max(1, quantities[symbol] + delta);
+            renderStocks();
+        }
+
+        function updateQuantity(symbol, value) {
+            quantities[symbol] = Math.max(1, parseInt(value) || 1);
+            renderStocks();
+        }
+
+        function setQuantity(symbol, value) {
+            quantities[symbol] = Math.max(1, Math.floor(value));
+            renderStocks();
+        }
+
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+            setTimeout(() => {
+                msg.classList.add('hidden');
+            }, 3000);
+        }
+
+        function buyStock(symbol) {
+            if (!isMarketOpen) {
+                showMessage('⏰ 市場休市中，無法交易！', 'error');
+                return;
+            }
+            
+            const quantity = quantities[symbol];
+            const price = stocks[symbol].price;
+            const subtotal = price * quantity;
+            const commission = subtotal * COMMISSION_RATE;
+            const totalCost = subtotal + commission;
+            
+            if (totalCost > cash) {
+                showMessage(`💸 現金不足！還差 $${(totalCost - cash).toFixed(2)}`, 'error');
+                return;
+            }
+            
+            cash -= totalCost;
+            
+            if (!portfolio[symbol]) {
+                portfolio[symbol] = { quantity: 0, avgPrice: 0, totalCost: 0 };
+            }
+            
+            const oldTotalCost = portfolio[symbol].totalCost;
+            portfolio[symbol].quantity += quantity;
+            portfolio[symbol].totalCost = oldTotalCost + totalCost;
+            portfolio[symbol].avgPrice = portfolio[symbol].totalCost / portfolio[symbol].quantity;
+            
+            transactions.unshift({
+                type: 'buy',
+                symbol: symbol,
+                name: stocks[symbol].name,
+                quantity: quantity,
+                price: price,
+                commission: commission,
+                total: totalCost,
+                time: new Date(marketTime)
+            });
+            
+            showMessage(`✅ 買入成功！${symbol} × ${quantity} 股 @ $${price.toFixed(2)}`, 'success');
+            renderStocks();
+            updateDashboard();
+            renderTransactions();
+            saveGameData();
+        }
+
+        function sellStock(symbol) {
+            if (!isMarketOpen) {
+                showMessage('⏰ 市場休市中，無法交易！', 'error');
+                return;
+            }
+            
+            const quantity = quantities[symbol];
+            
+            if (!portfolio[symbol] || portfolio[symbol].quantity < quantity) {
+                showMessage(`❌ 持股不足！目前只有 ${portfolio[symbol]?.quantity || 0} 股`, 'error');
+                return;
+            }
+            
+            const price = stocks[symbol].price;
+            const subtotal = price * quantity;
+            const commission = subtotal * COMMISSION_RATE;
+            const tax = subtotal * TAX_RATE;
+            const totalRevenue = subtotal - commission - tax;
+            
+            const costPerShare = portfolio[symbol].totalCost / portfolio[symbol].quantity;
+            const totalCost = costPerShare * quantity;
+            const profit = totalRevenue - totalCost;
+            
+            cash += totalRevenue;
+            portfolio[symbol].quantity -= quantity;
+            portfolio[symbol].totalCost -= totalCost;
+            
+            if (portfolio[symbol].quantity === 0) {
+                delete portfolio[symbol];
+            }
+            
+            transactions.unshift({
+                type: 'sell',
+                symbol: symbol,
+                name: stocks[symbol].name,
+                quantity: quantity,
+                price: price,
+                commission: commission,
+                tax: tax,
+                total: totalRevenue,
+                profit: profit,
+                time: new Date(marketTime)
+            });
+            
+            const profitText = profit >= 0 ? `獲利 $${profit.toFixed(2)}` : `虧損 $${Math.abs(profit).toFixed(2)}`;
+            showMessage(`✅ 賣出成功！${symbol} × ${quantity} 股 @ $${price.toFixed(2)} | ${profitText}`, 'success');
+            renderStocks();
+            updateDashboard();
+            renderTransactions();
+            saveGameData();
+        }
+
+        function renderTransactions() {
+            const list = document.getElementById('transactionList');
+            
+            if (transactions.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: #999; padding: 40px;">尚無交易記錄</div>';
+                return;
+            }
+            
+            list.innerHTML = transactions.slice(0, 20).map(t => {
+                const typeText = t.type === 'buy' ? '買入' : '賣出';
+                const typeClass = t.type;
+                const typeIcon = t.type === 'buy' ? '📈' : '📉';
+                
+                let details = `${t.symbol} (${t.name}) × ${t.quantity}股 @ $${t.price.toFixed(2)}`;
+                if (t.type === 'sell' && t.profit !== undefined) {
+                    const profitColor = t.profit >= 0 ? '#28a745' : '#dc3545';
+                    details += ` | <span style="color: ${profitColor}; font-weight: bold;">${t.profit >= 0 ? '+' : ''}$${t.profit.toFixed(2)}</span>`;
+                }
+                
+                return `
+                    <div class="transaction-item ${typeClass}">
+                        <div class="transaction-info">
+                            <div class="transaction-type">${typeIcon} ${typeText}</div>
+                            <div class="transaction-details">${details}</div>
+                            <div class="transaction-details" style="margin-top: 5px; font-size: 0.8em;">
+                                ${t.time.toLocaleString('zh-TW')}
+                            </div>
+                        </div>
+                        <div class="transaction-amount" style="color: ${t.type === 'buy' ? '#dc3545' : '#28a745'}">
+                            ${t.type === 'buy' ? '-' : '+'}$${Math.abs(t.total).toFixed(2)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateDashboard() {
+            let stockValue = 0;
+            let stockCount = 0;
+            Object.keys(portfolio).forEach(symbol => {
+                stockValue += portfolio[symbol].quantity * stocks[symbol].price;
+                stockCount++;
+            });
+            
+            const totalAssets = cash + stockValue;
+            const totalProfit = totalAssets - INITIAL_CASH;
+            const totalReturn = (totalProfit / INITIAL_CASH) * 100;
+            
+            const todayProfit = totalAssets - dayStartAssets;
+            const todayReturn = (todayProfit / dayStartAssets) * 100;
+            
+            document.getElementById('cash').textContent = `$${cash.toFixed(2)}`;
+            document.getElementById('stockValue').textContent = `$${stockValue.toFixed(2)}`;
+            document.getElementById('stockCount').textContent = `${stockCount} 檔股票`;
+            document.getElementById('totalAssets').textContent = `$${totalAssets.toFixed(2)}`;
+            document.getElementById('totalReturn').textContent = `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`;
+            
+            const profitEl = document.getElementById('totalProfit');
+            profitEl.textContent = `${totalProfit >= 0 ? '+' : ''}$${totalProfit.toFixed(2)}`;
+            profitEl.style.color = totalProfit >= 0 ? '#28a745' : '#dc3545';
+            
+            const percentEl = document.getElementById('profitPercent');
+            percentEl.textContent = `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`;
+            percentEl.style.color = totalReturn >= 0 ? '#28a745' : '#dc3545';
+            
+            const todayProfitEl = document.getElementById('todayProfit');
+            todayProfitEl.textContent = `${todayProfit >= 0 ? '+' : ''}$${todayProfit.toFixed(2)}`;
+            todayProfitEl.style.color = todayProfit >= 0 ? '#28a745' : '#dc3545';
+            
+            const todayReturnEl = document.getElementById('todayReturn');
+            todayReturnEl.textContent = `${todayReturn >= 0 ? '+' : ''}${todayReturn.toFixed(2)}%`;
+            todayReturnEl.style.color = todayReturn >= 0 ? '#28a745' : '#dc3545';
+        }
+
+        // 初始化
+        loadData();
+        createMainChart();
+        updateMarketStatus();
+        renderStocks();
+        updateDashboard();
+        renderTransactions();
+        
+        // 每2秒更新股價
+        setInterval(updateStockPrices, 2000);
+        
+        // 每5秒自動儲存
+        setInterval(saveGameData, 5000);
+    </script>
+</body>
+</html>
