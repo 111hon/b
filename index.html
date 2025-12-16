@@ -1,1533 +1,1389 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=0.5">
-    <title>真實股票投資模擬器</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<title>Dev html++ (V21.5 In-Editor Window)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/lib/codemirror.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/theme/dracula.min.css">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+
+<style>
+  /* --- 全局變數 & 新版 UI 配色 --- */
+  :root {
+    --base-font-size: 14px; 
+    --ui-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    
+    /* UI 尺寸 */
+    --ui-pad-y: clamp(4px, 0.8vh, 8px);
+    --ui-pad-x: clamp(8px, 1.5vw, 16px);
+    --ui-radius: 8px;
+    --btn-size: 36px;
+
+    /* 新版配色 */
+    --bg-app: #0f0f12;           
+    --bg-panel: #18181b;         
+    --border-color: #3f3f46;     
+    --text-main: #f8f8f2;        
+    --text-muted: #a1a1aa;  
+    --btn-bg: #232326;
+    --btn-hover: #333;
+    --accent-color: #6272a4;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  
+  body { 
+    font-family: var(--ui-font); 
+    background: var(--bg-app); 
+    color: var(--text-main); 
+    height: 100vh; 
+    height: 100dvh; 
+    overflow:hidden; 
+    touch-action: none; 
+  }
+    
+  .browser-container { 
+    margin: clamp(0px, 2vw, 20px); 
+    height: calc(100vh - clamp(0px, 4vw, 40px)); 
+    height: calc(100dvh - clamp(0px, 4vw, 40px)); 
+    background: var(--bg-panel); 
+    border-radius: var(--ui-radius); 
+    border: 1px solid var(--border-color);
+    overflow:hidden; 
+    box-shadow:0 20px 40px rgba(0,0,0,0.4); 
+    display:flex; 
+    flex-direction:column;
+    position: relative; 
+  }
+  
+  body.fullscreen-mode .browser-container {
+      margin: 0; border-radius: 0; border: none; height: 100vh; height: 100dvh;
+  }
+    
+  /* --- 分頁列 --- */
+  .tabs { 
+    display:flex; background: #1e1e1e; border-bottom:1px solid var(--border-color); 
+    padding: 6px 4px 0 4px; overflow-x:auto; scrollbar-width: none; position: relative; touch-action: pan-x;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab { 
+    display:flex; align-items:center; padding: 8px 12px; margin-right:2px; cursor:pointer; 
+    border-radius: var(--ui-radius) var(--ui-radius) 0 0; background: #2c2c2c; 
+    font-size: 13px; position:relative; color: var(--text-muted); flex-shrink:0; border: 1px solid transparent;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; 
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+  
+  .tab.active { 
+      background: var(--bg-panel); color: var(--text-main); font-weight: 500;
+      border-top: 2px solid var(--accent-color); z-index: 2; border-bottom: 1px solid var(--bg-panel); margin-bottom: -1px;
+  }
+
+  .tab .close-btn { margin-left:8px; font-size: 14px; opacity: 0.6; padding: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px;}
+  .tab .close-btn:hover { color:#ff5555; opacity: 1; background: rgba(255,255,255,0.1); }
+  .tab input { background: #000; border: 1px solid var(--accent-color); color: #fff; font-size: 13px; width: 100px; padding: 2px 4px; border-radius: 4px; }
+  .tab input:focus { outline:none; }
+
+  #newTabBtn { background: transparent; color: var(--text-muted); border: none; cursor: pointer; padding: 0 10px; font-size: 18px; display: flex; align-items: center; }
+  #newTabBtn:hover { color: #fff; }
+
+  /* --- 編輯器 --- */
+  .editor-container { position:relative; flex:1; overflow:hidden; padding-bottom:0; background: #282a36; }
+  .CodeMirror { 
+    position:absolute; top:0; bottom:0; left:0; right:0; height: 100% !important; 
+    font-size: var(--base-font-size); line-height: 1.6; padding-bottom: env(safe-area-inset-bottom);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  }
+
+  /* --- 工具列 --- */
+  .toolbar { 
+    display:flex; padding: 6px 8px; background: var(--bg-panel); gap: 6px; 
+    border-bottom:1px solid var(--border-color); position:sticky; top:0; z-index:10; 
+    flex-wrap:wrap; align-items:center; touch-action: manipulation;
+  }
+
+  .separator { width: 1px; height: 20px; background: var(--border-color); margin: 0 2px; flex-shrink: 0; }
+
+  .run-btn { 
+    height: var(--btn-size); min-width: var(--btn-size); padding: 0 8px; font-size: 14px;
+    border: 1px solid #333; border-radius: 6px; background: var(--btn-bg); color: var(--text-muted); 
+    cursor:pointer; flex-shrink:0; display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s; outline: none; -webkit-tap-highlight-color: transparent;
+  }
+  .run-btn i { font-size: 18px; line-height: 1; }
+  .run-btn:hover { background: var(--btn-hover); color: #fff; border-color: #555; }
+  .run-btn:active { transform: translateY(1px); background: #111; }
+
+  /* 搜尋欄 */
+  .search-bar { 
+    display:flex; align-items:center; gap: 4px; flex: 1; min-width: 180px; justify-content: flex-end; 
+    background: #111; padding: 2px; border-radius: 6px; border: 1px solid #333; margin-left: auto; position: relative;
+  }
+  .search-input { background: transparent; color: #fff; border: none; padding: 4px 8px; padding-right: 45px; font-size: 13px; width: 100%; min-width: 60px; }
+  .search-input:focus { outline:none; }
+  .search-count { position: absolute; right: 100px; font-size: 11px; color: #666; pointer-events: none; }
+  .search-bar .run-btn { border: none; background: transparent; min-width: 28px; height: 28px; width: 28px; padding: 0; }
+  .search-bar .run-btn:hover { background: #333; }
+
+  /* 狀態與 Checkbox */
+  .save-status { width: 8px; height: 8px; border-radius: 50%; background: #555; margin: 0 8px; transition: background 0.3s; flex-shrink: 0; }
+  .save-status.saving { background: #f1fa8c; box-shadow: 0 0 5px #f1fa8c; }
+  .save-status.saved { background: #50fa7b; }
+  .shell-option { display:flex; align-items:center; font-size:12px; color: var(--text-muted); cursor:pointer; user-select:none; margin: 0 4px; padding: 0 4px; height: var(--btn-size); }
+  .shell-option input { margin-right: 4px; accent-color: var(--accent-color); }
+
+  /* Scroll & Search Style */
+  .CodeMirror::-webkit-scrollbar { width:10px; height:10px; }
+  .CodeMirror::-webkit-scrollbar-track { background:#1e1e1e; }
+  .CodeMirror::-webkit-scrollbar-thumb { background:#6272a4; border-radius:5px; }
+  .cm-searching { background: rgba(255, 255, 0, 0.4); border-bottom: 1px solid yellow; }
+  .cm-active-search { background: rgba(255, 165, 0, 0.8) !important; color: #000 !important; outline: 2px solid #fff;}
+
+  /* RWD */
+  @media (max-width:600px){
+    .browser-container { margin: 0; border-radius: 0; height: 100vh; height: 100dvh; border:none; }
+    .toolbar { gap: 4px; padding: 4px; } 
+    .run-btn { min-width: 34px; height: 34px; }
+    .search-bar { order: 99; flex-basis: 100%; margin-top: 4px; }
+    .search-count { right: 110px; } 
+    .separator { height: 16px; margin: 0 1px; }
+  }
+
+  /* 拖曳樣式 */
+  .tab.dragging { opacity: 0.3; background: #444; }
+  .tab-ghost {
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.9;
+      background: #333; color: #fff; padding: 8px 12px; border-radius: 6px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5); border: 1px solid var(--accent-color);
+      font-size: 13px; display: flex; align-items: center; white-space: nowrap;
+      transform: translate(-50%, -50%) scale(1.05); -webkit-user-select: none;
+  }
+  body.is-dragging-mode * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+
+  /* 預覽視窗 */
+  #previewOverlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: #fff; z-index: 100; display: none; flex-direction: column;
+  }
+  #previewToolbar {
+      background: var(--bg-panel); padding: 8px; display: flex;
+      justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #444; flex-shrink: 0;
+  }
+  #previewTitle { font-weight: bold; color: #fff; font-size: 14px; display: flex; align-items: center; gap: 6px;}
+  #closePreviewBtn {
+    background: transparent; color: var(--text-muted); border: none;
+    font-size: 20px; cursor: pointer; display: flex; align-items: center;
+  }
+  #closePreviewBtn:hover { color: #fff; }
+  #previewFrame { flex: 1; border: none; width: 100%; height: 100%; background: #fff; }
+
+  /* --- AES 加密彈窗 & 通用彈窗樣式 --- */
+  #encryptOverlay, #selectOverlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8); z-index: 200; 
+      display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  }
+  .encrypt-box {
+      background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+      padding: 24px; 
+      width: 96%;           
+      max-width: 500px;     
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6); color: #fff;
+      display: flex; flex-direction: column; gap: 16px;
+  }
+  .encrypt-box h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; color: #fff; }
+  .encrypt-box label { font-size: 12px; color: #94a3b8; text-transform: uppercase; font-weight: 600; margin-bottom: -10px;}
+  
+  /* V22 Input 美化 */
+  .encrypt-input {
+      background: #0f172a; border: 2px solid #334155; color: #fff;
+      padding: 12px; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s;
+  }
+  .encrypt-input:focus { border-color: #6272a4; box-shadow: 0 0 0 3px rgba(98, 114, 164, 0.2); }
+
+  /* V22 選取行數專用樣式 */
+  .select-row { 
+      display: flex; align-items: center; justify-content: space-between; 
+      gap: 8px; 
+      margin: 10px 0;
+  }
+  .select-input { 
+      flex: 1; 
+      min-width: 0; 
+      text-align: center; font-size: 16px; background: #0f172a;
+      border: 2px solid #334155; border-radius: 8px; color: #fff; padding: 12px;
+      transition: 0.2s; 
+  }
+  .select-input:focus { border-color: #6272a4; box-shadow: 0 0 0 3px rgba(98, 114, 164, 0.2); outline: none; }
+  .select-sep { color: #6272a4; font-weight: bold; font-size: 18px; }
+  
+  .encrypt-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .encrypt-btn {
+      flex: 1; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  .btn-confirm { background: #000; color: #fff; }
+  .btn-confirm:hover { background: #222; border-color: #fff; }
+  .btn-cancel { background: transparent; color: #94a3b8; border: 1px solid transparent; }
+  .btn-cancel:hover { color: #fff; background: rgba(255,255,255,0.05); }
+
+  /* --- Stealth Mode (隱形黑屏模式) --- */
+  #stealthOverlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #000; z-index: 2147483647; /* 最大層級 */
+      cursor: none; pointer-events: auto; /* 攔截滑鼠點擊 */
+      touch-action: none;
+  }
+  #stealthUnlockZone {
+      position: absolute; top: 0; right: 0; width: 100px; height: 100px;
+      z-index: 2147483648; cursor: default;
+  }
+  #stealthInput {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      opacity: 0; width: 1px; height: 1px; background: transparent; border: none;
+      outline: none; pointer-events: none; z-index: 2147483648; 
+  }
+
+  /* --- 手機版模擬右鍵選單 (V17 新增) --- */
+  #mobileContextMenu {
+      display: none; /* 預設隱藏 */
+      position: fixed; /* 固定定位，確保浮在最上層 */
+      z-index: 99999; /* 確保蓋過編輯器和鍵盤 */
+      background: #1f2937; /* 深色背景 */
+      border: 1px solid #374151;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      flex-direction: row; /* 水平排列 */
+      overflow: hidden;
+      white-space: nowrap;
+      backdrop-filter: blur(10px);
+  }
+
+  .ctx-item {
+      padding: 10px 16px; color: #f3f4f6; font-size: 14px; cursor: pointer;
+      border-right: 1px solid #374151; transition: background 0.2s;
+      user-select: none; -webkit-user-select: none;
+  }
+  .ctx-item:last-child { border-right: none; }
+  .ctx-item:active { background: #4b5563; }
+
+  /* --- ✨ Monaco Style Color Decorators (V21.3 Touch Fix) --- */
+  .cm-color-preview {
+      display: inline-block;
+      width: 1em; /* ✨ 加大寬度 */
+      height: 1em; /* ✨ 加大高度 */
+      margin-right: 0.4em;
+      border: 2px solid rgba(255,255,255,0.4); /* ✨ 加粗邊框 */
+      border-radius: 3px;
+      vertical-align: middle;
+      transform: translateY(-0.1em);
+      
+      /* ✨ 關鍵：確保它可以被點擊 */
+      pointer-events: auto;
+      cursor: pointer; 
+      
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  /* --- ✨ 新增：選色視窗專用樣式 (V21.2) --- */
+  #colorPickerOverlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); z-index: 300; /* 比一般彈窗高 */
+    display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  }
+
+  /* --- ✨ 括號匹配高亮樣式 (NEW) --- */
+  .CodeMirror-matchingbracket { 
+      border: 1px solid #50fa7b !important; /* 綠色邊框 */
+      color: #fff !important; 
+      background-color: rgba(80, 250, 123, 0.2); /* 淡淡的綠色背景 */
+  }
+  .CodeMirror-nonmatchingbracket { 
+      border: 1px solid #ff5555 !important; /* 如果括號不對稱，顯示紅色 */
+      background-color: rgba(255, 85, 85, 0.2);
+  }
+</style>
+</head>
+<body>
+
+<div class="browser-container">
+  <div class="tabs" id="tabBar">
+    <button id="newTabBtn" title="新增分頁"><i class="ri-add-line"></i></button>
+  </div>
+
+  <div class="toolbar">
+    <button class="run-btn" onclick="editorUndo()" title="復原"><i class="ri-arrow-go-back-line"></i></button>
+    <button class="run-btn" onclick="editorRedo()" title="重做"><i class="ri-arrow-go-forward-line"></i></button>
+    
+    <div class="separator"></div>
+
+    <button class="run-btn" onclick="formatCode()" title="排版程式碼"><i class="ri-magic-line"></i></button>
+    <button class="run-btn" onclick="changeFontSize(1)" title="放大字體"><i class="ri-zoom-in-line"></i></button>
+    <button class="run-btn" onclick="changeFontSize(-1)" title="縮小字體"><i class="ri-zoom-out-line"></i></button>
+    <button class="run-btn" onclick="openSelectModal()" title="選取指定行數">
+        <i class="ri-list-check-2"></i>
+    </button>
+    <button class="run-btn" onclick="insertTemplate()" title="插入 HTML5 骨架"><i class="ri-file-code-line"></i></button>
+
+    <button class="run-btn" onclick="openEncryptModal()" title="加密封裝 (AES Vault)">
+        <i class="ri-file-lock-line"></i>
+    </button>
+    <div class="separator"></div>
+
+    <button class="run-btn" onclick="openFile()" title="開啟檔案"><i class="ri-folder-open-line"></i></button>
+    <button class="run-btn" onclick="downloadHTML()" title="下載原始碼"><i class="ri-download-line"></i></button>
+
+    <button class="run-btn" onclick="copyHTML()" title="複製程式碼"><i class="ri-file-copy-line"></i></button>
+    <button class="run-btn" onclick="pasteHTML()" title="貼上"><i class="ri-clipboard-line"></i></button>
+    <button class="run-btn" onclick="clearHTML()" title="清空"><i class="ri-delete-bin-line"></i></button>
+	<button class="run-btn" onclick="runHTML()" title="執行程式"><i class="ri-play-fill"></i></button>
+    <label class="shell-option" title="開啟 Console Shell">
+        <input type="checkbox" id="useConsole" checked> 
+        Shell
+    </label>
+    <label class="shell-option" title="匿蹤">
+        <input type="checkbox" id="stealthModeToggle"> 
+        Hide
+    </label>
+    <div id="saveStatus" class="save-status" title="存檔狀態"></div>
+    <input type="file" id="fileInput" style="display:none" accept=".html,.css,.js,.txt,.json,.md,.htm">
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" class="search-input" placeholder="搜尋..." autocomplete="off">
+      <span id="searchCount" class="search-count"></span>
+      
+      <button class="run-btn" onclick="findPrev()" title="上一個"><i class="ri-arrow-up-s-line"></i></button>
+      <button class="run-btn" onclick="findNext()" title="下一個"><i class="ri-arrow-down-s-line"></i></button>
+      <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
+      <button class="run-btn" onclick="toggleFullScreen()" title="全螢幕"><i class="ri-fullscreen-line"></i></button>
+    </div>
+  </div>
+
+  <div class="editor-container">
+    <div id="editorWrapper"></div>
+  </div>
+
+  <div id="previewOverlay">
+      <div id="previewToolbar">
+          <span id="previewTitle">Preview Output</span>
+          <button id="closePreviewBtn" onclick="closePreview()"><i class="ri-close-circle-line"></i></button>
+      </div>
+      <iframe id="previewFrame"></iframe>
+  </div>
+
+  <div id="encryptOverlay">
+      <div class="encrypt-box">
+          <h3><i class="ri-lock-2-line"></i> AES Secure Vault</h3>
+          <p style="font-size:12px; color:#94a3b8; margin-top:-8px;">將當前程式碼封裝為單一加密網頁</p>
+          
+          <label>1. 頁面標題 (Title)</label>
+          <input type="text" id="encTitle" class="encrypt-input" placeholder="My Secret App">
+          
+          <label>2. 設定密碼 (Password)</label>
+          <input type="password" id="encPass" class="encrypt-input" placeholder="設定解鎖密碼..." autocomplete="new-password">
+          
+          <div class="encrypt-actions">
+              <button class="encrypt-btn btn-cancel" onclick="closeEncryptModal()">取消</button>
+              <button class="encrypt-btn btn-confirm" onclick="processEncryption()">加密並下載</button>
+          </div>
+      </div>
+  </div>
+
+</div>
+
+<div id="stealthOverlay">
+    <input type="text" id="stealthInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div id="stealthUnlockZone" title="Double Click to Unlock"></div>
+</div>
+
+<div id="selectOverlay">
+    <div class="encrypt-box" id="selectModalBox">
+        <h3><i class="ri-cursor-text"></i> 選取行數 (Select Lines)</h3>
+        <p style="font-size:12px; color:#94a3b8; margin-top:-8px;">輸入起始與結束行號進行選取</p>
+        <div class="select-row">
+            <input type="number" inputmode="numeric" id="lineStart" class="select-input" placeholder="Start">
+            <span class="select-sep">~</span>
+            <input type="number" inputmode="numeric" id="lineEnd" class="select-input" placeholder="End">
+        </div>
+        <div class="encrypt-actions">
+            <button class="encrypt-btn btn-cancel" onclick="closeSelectModal()">取消</button>
+            <button class="encrypt-btn btn-confirm" onclick="applyLineSelection()">確定</button>
+        </div>
+    </div>
+</div>
+
+<div id="colorPickerOverlay">
+    <div class="encrypt-box">
+        <h3><i class="ri-palette-line"></i> 選擇顏色 (Color Picker)</h3>
+        <p style="font-size:12px; color:#94a3b8; margin-top:-8px;">點擊左側色塊開啟系統選色盤</p>
         
-        body {
-            font-family: 'Microsoft JhengHei', Arial, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            background: #f5f7fa;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        @media (max-width: 1024px) {
-            .header {
-                flex-direction: column;
-                align-items: stretch;
-            }
+        <div style="display:flex; gap:15px; align-items:center; margin:15px 0;">
+            <input type="color" id="modalNativeColor" style="width:50px; height:50px; border:2px solid #555; border-radius:8px; padding:0; background:none; cursor:pointer;">
             
-            .header > div {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-        
-        h1 {
-            color: #1e3c72;
-            font-size: 2.5em;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
-        .market-status {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            background: white;
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-indicator.open {
-            background: #28a745;
-            box-shadow: 0 0 10px #28a745;
-        }
-        
-        .status-indicator.closed {
-            background: #dc3545;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .status-text {
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .market-time {
-            color: #666;
-            font-size: 0.9em;
-        }
-        
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-        }
-        
-        .stat-card h3 {
-            font-size: 0.85em;
-            color: #666;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .stat-card .value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .stat-card .sub-value {
-            font-size: 0.85em;
-            color: #999;
-            margin-top: 8px;
-        }
-        
-        .save-indicator {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(102, 126, 234, 0.95);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 25px;
-            font-size: 0.9em;
-            font-weight: 600;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 999;
-            display: none;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .save-indicator.show {
-            display: flex;
-            animation: fadeInOut 2s ease;
-        }
-        
-        @keyframes fadeInOut {
-            0%, 100% { opacity: 0; transform: translateY(20px); }
-            10%, 90% { opacity: 1; transform: translateY(0); }
-        }
-        
-        .chart-panel {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .chart-panel h2 {
-            color: #1e3c72;
-            font-size: 1.5em;
-        }
-        
-        .chart-controls {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .chart-controls button {
-            padding: 8px 16px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-        }
-        
-        .chart-controls button.active,
-        .chart-controls button:hover {
-            background: #667eea;
-            color: white;
-        }
-        
-        .chart-container {
-            background: #fafbfc;
-            padding: 20px;
-            border-radius: 12px;
-            height: 450px;
-            position: relative;
-        }
-        
-        .market-panel {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        
-        .market-panel h2 {
-            color: #1e3c72;
-            margin-bottom: 25px;
-            font-size: 1.5em;
-        }
-        
-        .stock-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
-        }
-        
-        .stock-card {
-            background: #fafbfc;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            transition: all 0.3s;
-            position: relative;
-            cursor: pointer;
-            border: 2px solid transparent;
-        }
-        
-        .stock-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-            border-color: #667eea;
-        }
-        
-        .stock-card.selected {
-            border: 3px solid #667eea;
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-            background: white;
-        }
-        
-        .stock-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 18px;
-        }
-        
-        .stock-symbol {
-            font-weight: bold;
-            font-size: 1.4em;
-            color: #1e3c72;
-        }
-        
-        .stock-name {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 4px;
-        }
-        
-        .stock-sector {
-            font-size: 0.75em;
-            color: #999;
-            margin-top: 2px;
-        }
-        
-        .stock-price-info {
-            text-align: right;
-        }
-        
-        .current-price {
-            font-size: 1.6em;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .price-change {
-            font-size: 0.9em;
-            padding: 5px 10px;
-            border-radius: 6px;
-            margin-top: 6px;
-            display: inline-block;
-            font-weight: 600;
-        }
-        
-        .price-change.up {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .price-change.down {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .price-change.neutral {
-            background: #e2e3e5;
-            color: #383d41;
-        }
-        
-        .stock-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin: 15px 0;
-            padding: 12px;
-            background: white;
-            border-radius: 8px;
-            font-size: 0.85em;
-        }
-        
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .stat-label {
-            color: #666;
-        }
-        
-        .stat-value {
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .mini-chart {
-            height: 80px;
-            margin: 15px 0;
-            background: white;
-            border-radius: 8px;
-            padding: 5px;
-        }
-        
-        .holding-info {
-            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-            padding: 12px;
-            border-radius: 8px;
-            margin: 15px 0;
-            font-size: 0.9em;
-            border-left: 4px solid #2196f3;
-        }
-        
-        .holding-info strong {
-            color: #1565c0;
-        }
-        
-        .trade-controls {
-            margin-top: 20px;
-        }
-        
-        .quantity-input {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: white;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-        }
-        
-        .quantity-input button {
-            width: 40px;
-            height: 40px;
-            border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 8px;
-            font-size: 1.3em;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .quantity-input button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        
-        .quantity-input input {
-            flex: 1;
-            border: 2px solid #e0e0e0;
-            background: white;
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #333;
-            padding: 8px;
-            border-radius: 8px;
-        }
-        
-        .quick-amount {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        
-        .quick-amount button {
-            padding: 8px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 8px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .quick-amount button:hover {
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-        }
-        
-        .cost-info {
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            font-size: 0.85em;
-        }
-        
-        .cost-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-        }
-        
-        .cost-row.total {
-            font-weight: bold;
-            font-size: 1.1em;
-            padding-top: 8px;
-            border-top: 2px solid #e0e0e0;
-            margin-top: 8px;
-            color: #1e3c72;
-        }
-        
-        .trade-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        
-        .btn-trade {
-            padding: 14px 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.05em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .btn-buy {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
-        }
-        
-        .btn-buy:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
-        }
-        
-        .btn-sell {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
-        }
-        
-        .btn-sell:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
-        }
-        
-        .btn-trade:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-        
-        .message {
-            position: fixed;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 18px 35px;
-            border-radius: 12px;
-            font-weight: 600;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-            z-index: 1000;
-            animation: slideDown 0.4s ease;
-            min-width: 300px;
-            text-align: center;
-        }
-        
-        @keyframes slideDown {
-            from {
-                transform: translate(-50%, -150%);
-                opacity: 0;
-            }
-            to {
-                transform: translate(-50%, 0);
-                opacity: 1;
-            }
-        }
-        
-        .message.success {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            color: #155724;
-            border: 3px solid #28a745;
-        }
-        
-        .message.error {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #721c24;
-            border: 3px solid #dc3545;
-        }
-        
-        .hidden {
-            display: none;
-        }
-        
-        .profit-badge {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .profit-badge.positive {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            color: #155724;
-        }
-        
-        .profit-badge.negative {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #721c24;
-        }
-        
-        .transaction-panel {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        
-        .transaction-panel h2 {
-            color: #1e3c72;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-        }
-        
-        .transaction-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .transaction-item {
-            padding: 15px;
-            margin-bottom: 10px;
-            background: #fafbfc;
-            border-radius: 10px;
-            border-left: 4px solid #667eea;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .transaction-item.buy {
-            border-left-color: #28a745;
-        }
-        
-        .transaction-item.sell {
-            border-left-color: #dc3545;
-        }
-        
-        .transaction-info {
-            flex: 1;
-        }
-        
-        .transaction-type {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 5px;
-        }
-        
-        .transaction-details {
-            font-size: 0.85em;
-            color: #666;
-        }
-        
-        .transaction-amount {
-            text-align: right;
-            font-weight: bold;
-            font-size: 1.1em;
-        }
-        
-        .volume-bar {
-            height: 4px;
-            background: #e0e0e0;
-            border-radius: 2px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-        
-        .volume-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            border-radius: 2px;
-            transition: width 0.3s;
-        }
+            <input type="text" id="modalHexInput" class="encrypt-input" style="flex:1; font-family:monospace; text-transform:uppercase; font-size: 16px;" placeholder="#FFFFFF">
+        </div>
+
+        <div class="encrypt-actions">
+            <button class="encrypt-btn btn-cancel" onclick="closeColorModal()">取消</button>
+            <button class="encrypt-btn btn-confirm" onclick="applyColorModal()">確定套用</button>
+        </div>
+    </div>
+</div>
+
+<div id="mobileContextMenu">
+    <div class="ctx-item" onclick="execCmd('copy')">複製</div>
+    <div class="ctx-item" onclick="execCmd('cut')">剪下</div>
+    <div class="ctx-item" onclick="execCmd('delete')">刪除</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/lib/codemirror.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/search/searchcursor.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/edit/closebrackets.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/edit/matchbrackets.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/edit/closetag.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/fold/xml-fold.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/addon/edit/matchtags.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/mode/htmlmixed/htmlmixed.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/mode/javascript/javascript.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/mode/css/css.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.15/mode/xml/xml.js"></script>
+
+<script>
+// ✨ 全局變數
+let tabs = [];
+let currentTab = -1;
+const editorWrapper = document.getElementById("editorWrapper");
+const searchInput = document.getElementById("searchInput");
+const searchCount = document.getElementById("searchCount");
+const tabBar = document.getElementById("tabBar");
+const saveStatus = document.getElementById("saveStatus");
+let searchCursor = null;
+
+// ✨ 拖曳相關
+let isDraggingMobile = false;
+let draggedTab = null;
+let ghostTab = null; 
+let touchTimer = null;
+let startX = 0;
+let startY = 0;
+const DRAG_THRESHOLD = 8; 
+
+const isAndroid = /Android/i.test(navigator.userAgent);
+let currentFontSize = 14;
+
+// --- ✨ 新版選色視窗邏輯 (V21.2 Custom Modal) ---
+const colorOverlay = document.getElementById("colorPickerOverlay");
+const modalNativeColor = document.getElementById("modalNativeColor");
+const modalHexInput = document.getElementById("modalHexInput");
+let activeColorRange = null; // 暫存當前編輯的範圍
+
+// 1. 綁定連動：選色盤變動 -> 更新文字框
+modalNativeColor.addEventListener("input", (e) => { 
+    modalHexInput.value = e.target.value.toUpperCase(); 
+});
+
+// 2. 綁定連動：文字框變動 -> 更新選色盤 (如果格式正確)
+modalHexInput.addEventListener("input", (e) => {
+    const val = e.target.value;
+    if(val.match(/^#[0-9a-fA-F]{6}$/)) {
+        modalNativeColor.value = val;
+    }
+});
+
+// 開啟視窗
+function openColorModal(colorStr, startPos, endPos) {
+    activeColorRange = { from: startPos, to: endPos };
+    
+    // 初始化數值
+    if (colorStr.startsWith("#") && colorStr.length === 7) {
+        modalNativeColor.value = colorStr;
+        modalHexInput.value = colorStr;
+    } else {
+        // 如果是 rgb() 或其他格式，預設先給黑色 (或保留原字串在文字框)
+        modalNativeColor.value = "#000000"; 
+        modalHexInput.value = colorStr;
+    }
+    
+    colorOverlay.style.display = "flex";
+}
+
+// 關閉視窗
+function closeColorModal() { 
+    colorOverlay.style.display = "none"; 
+    activeColorRange = null; 
+}
+
+// 確定套用顏色
+function applyColorModal() {
+    if (!activeColorRange || currentTab < 0) return;
+    const newColor = modalHexInput.value;
+    const editor = tabs[currentTab].editor;
+    
+    editor.operation(() => {
+        editor.replaceRange(newColor, activeColorRange.from, activeColorRange.to);
+    });
+    
+    closeColorModal();
+    // 強制刷新一次預覽
+    setTimeout(() => updateColorDecorators(editor), 100);
+}
+
+// ✨ V21.3 修改後的渲染函式：點擊色塊 -> 開啟自定義視窗
+function updateColorDecorators(cm) {
+    if (cm._colorBookmarks) {
+        cm._colorBookmarks.forEach(b => b.clear());
+    }
+    cm._colorBookmarks = [];
+
+    const text = cm.getValue();
+    let match;
+    // 重置正則
+    const colorRegex = /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|rgba?\([\d\s,.]+\)|hsla?\([\d\s,.%]+\)/g;
+
+    cm.operation(() => {
+        while ((match = colorRegex.exec(text)) !== null) {
+            const colorStr = match[0];
+            const startPos = cm.posFromIndex(match.index);
+            const endPos = cm.posFromIndex(match.index + colorStr.length);
+
+            const node = document.createElement("span");
+            node.className = "cm-color-preview";
+            node.style.backgroundColor = colorStr;
+            
+            // ✨ V21.3 關鍵修改：
+            // 1. 同時監聽 click 和 touchend
+            // 2. 加上 preventDefault 防止手機誤觸為「移動游標」
+            const handleClick = (e) => {
+                e.stopPropagation(); 
+                e.preventDefault(); 
+                openColorModal(colorStr, startPos, endPos);
+                return false;
+            };
+
+            node.onclick = handleClick;
+            node.ontouchend = handleClick; // 手機優先觸發這個
+
+            const bookmark = cm.setBookmark(startPos, { 
+                widget: node, 
+                handleMouseEvents: true 
+            });
+            cm._colorBookmarks.push(bookmark);
+        }
+    });
+}
+
+// --- 預覽視窗控制 ---
+const previewOverlay = document.getElementById("previewOverlay");
+const previewFrame = document.getElementById("previewFrame");
+
+async function closePreview() {
+    try {
+        const win = previewFrame.contentWindow;
+        if (win && win.__errorBuffer && win.__errorBuffer.length > 0) {
+            const errorText = win.__errorBuffer.join('\n');
+            await navigator.clipboard.writeText(errorText);
+            alert(`已自動複製 ${win.__errorBuffer.length} 條不重複的錯誤訊息！`);
+        }
+    } catch (e) {}
+    previewOverlay.style.display = "none";
+    previewFrame.srcdoc = "";
+}
+
+// --- AES 加密模組整合 ---
+const encryptOverlay = document.getElementById('encryptOverlay');
+const encTitle = document.getElementById('encTitle');
+const encPass = document.getElementById('encPass');
+
+function openEncryptModal() {
+    if(currentTab < 0) return alert("請先建立或開啟一個檔案");
+    // 預填標題為當前 Tab 名稱
+    encTitle.value = tabs[currentTab].name || "Encrypted Page";
+    encPass.value = "";
+    encryptOverlay.style.display = "flex";
+    encPass.focus();
+}
+
+function closeEncryptModal() {
+    encryptOverlay.style.display = "none";
+}
+
+function processEncryption() {
+    const key = encPass.value;
+    const title = encTitle.value || "Secured Document";
+    
+    if (!key) return alert("錯誤：請設定加密密碼");
+    
+    // 獲取當前編輯器內容
+    const content = tabs[currentTab].editor.getValue();
+    if (!content.trim()) return alert("錯誤：檔案內容為空");
+
+    try {
+        // 加密內容
+        const encrypted = CryptoJS.AES.encrypt(content, key).toString();
+        // 生成包含解密邏輯的 HTML
+        const finalHtml = getDecryptionTemplate(title, encrypted);
+        
+        // 下載
+        const blob = new Blob([finalHtml], { type: "text/html" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "index.html";
+        link.click();
+        
+        closeEncryptModal();
+        alert("加密成功！檔案已下載。");
+    } catch (err) {
+        alert("加密失敗：" + err.message);
+    }
+}
+
+// 生成解密頁面
+function getDecryptionTemplate(title, encryptedData) {
+    return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+	<link id="favicon" rel="icon" href="" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>${title}</title>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"><\/script>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body, html { margin:0; padding:0; width:100%; height:100%; background:var(--bg); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; color: var(--text); }
+        #auth-container { position: relative; width: 90%; max-width: 350px; background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 40px 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); text-align: center; transition: all 0.5s ease; }
+        h2 { margin: 0 0 5px; font-weight: 700; letter-spacing: 1px; }
+        p.hint { margin: 0 0 25px; font-size: 13px; color: #94a3b8; }
+        .input-box { position: relative; margin-bottom: 20px; }
+        input { width: 100%; padding: 15px; border-radius: 12px; border: 2px solid #334155; background: #000; color: #fff; font-size: 16px; text-align: center; box-sizing: border-box; transition: 0.3s; font-family: monospace; letter-spacing: 2px; }
+        input:focus { border-color: #fff; outline: none; box-shadow: 0 0 0 4px rgba(255,255,255,0.1); }
+        button { width: 100%; padding: 15px; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; background: #000; color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.3s; letter-spacing: 0.5px; }
+        button:hover { background: #222; transform: translateY(-2px); border-color: #fff;}
+        button:active { transform: translateY(0); }
+        #msg { height: 20px; margin-top: 15px; font-size: 13px; color: #f87171; opacity: 0; transition: opacity 0.3s; }
+        iframe { position:fixed; top:0; left:0; width:100%; height:100%; border:none; z-index:10; background:#fff; display:none; opacity:0; transition: opacity 0.5s; }
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+        .unlocking { transform: scale(1.1); opacity: 0; filter: blur(10px); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📈 真實股票投資模擬器</h1>
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div class="market-status">
-                    <div class="status-indicator" id="statusIndicator"></div>
-                    <div>
-                        <div class="status-text" id="statusText">載入中...</div>
-                        <div class="market-time" id="marketTime"></div>
-                    </div>
-                </div>
-                <button onclick="exportData()" style="padding: 12px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                    📥 匯出
-                </button>
-                <button onclick="importData()" style="padding: 12px 20px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                    📤 匯入
-                </button>
-                <button onclick="resetGame()" style="padding: 12px 20px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                    🔄 重置
-                </button>
-            </div>
+    <div id="auth-container">
+        <div style="margin-bottom: 20px;">
+            <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </div>
-        
-        <div class="dashboard">
-            <div class="stat-card">
-                <h3>總資產</h3>
-                <div class="value" id="totalAssets">$100,000.00</div>
-                <div class="sub-value" id="totalReturn">--</div>
-            </div>
-            <div class="stat-card">
-                <h3>可用現金</h3>
-                <div class="value" id="cash">$100,000.00</div>
-                <div class="sub-value">餘額</div>
-            </div>
-            <div class="stat-card">
-                <h3>持股市值</h3>
-                <div class="value" id="stockValue">$0.00</div>
-                <div class="sub-value" id="stockCount">0 檔股票</div>
-            </div>
-            <div class="stat-card">
-                <h3>今日損益</h3>
-                <div class="value" id="todayProfit">$0.00</div>
-                <div class="sub-value" id="todayReturn">0.00%</div>
-            </div>
-            <div class="stat-card">
-                <h3>總損益</h3>
-                <div class="value" id="totalProfit">$0.00</div>
-                <div class="sub-value" id="profitPercent">0.00%</div>
-            </div>
-        </div>
-        
-        <div id="message" class="message hidden"></div>
-        <div id="saveIndicator" class="save-indicator">💾 數據已自動儲存</div>
-        
-        <div class="chart-panel">
-            <div class="chart-header">
-                <h2 id="chartTitle">📊 投資組合總資產走勢</h2>
-                <div class="chart-controls">
-                    <button class="active" onclick="changeTimeframe('all')">全部</button>
-                    <button onclick="changeTimeframe('day')">今日</button>
-                    <button onclick="changeTimeframe('week')">一週</button>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="mainChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="market-panel">
-            <h2>💹 市場行情（點擊查看詳細走勢）</h2>
-            <div class="stock-grid" id="stockGrid"></div>
-        </div>
-        
-        <div class="transaction-panel">
-            <h2>📋 交易記錄</h2>
-            <div class="transaction-list" id="transactionList">
-                <div style="text-align: center; color: #999; padding: 40px;">尚無交易記錄</div>
-            </div>
-        </div>
+        <h2>SECURE ACCESS</h2>
+        <p class="hint">Encrypted Content</p>
+        <div class="input-box"><input type="password" id="pwd" placeholder="PASSWORD" /></div>
+        <button id="btn">UNLOCK</button>
+        <div id="msg">Password Incorrect</div>
     </div>
-
+    <iframe id="viewer"></iframe>
     <script>
-        const stocks = {
-            'AAPL': { name: '蘋果公司', sector: '科技', price: 175.50, basePrice: 175.50, change: 0, history: [], volume: 0, volatility: 0.015, trend: 0 },
-            'GOOGL': { name: 'Alphabet', sector: '科技', price: 142.30, basePrice: 142.30, change: 0, history: [], volume: 0, volatility: 0.018, trend: 0 },
-            'MSFT': { name: '微軟', sector: '科技', price: 415.20, basePrice: 415.20, change: 0, history: [], volume: 0, volatility: 0.012, trend: 0 },
-            'TSLA': { name: '特斯拉', sector: '汽車', price: 248.75, basePrice: 248.75, change: 0, history: [], volume: 0, volatility: 0.035, trend: 0 },
-            'AMZN': { name: '亞馬遜', sector: '電商', price: 178.90, basePrice: 178.90, change: 0, history: [], volume: 0, volatility: 0.020, trend: 0 },
-            'NVDA': { name: '輝達', sector: '半導體', price: 485.60, basePrice: 485.60, change: 0, history: [], volume: 0, volatility: 0.028, trend: 0 },
-            'META': { name: 'Meta', sector: '社群媒體', price: 512.30, basePrice: 512.30, change: 0, history: [], volume: 0, volatility: 0.022, trend: 0 },
-            'NFLX': { name: '網飛', sector: '串流媒體', price: 625.40, basePrice: 625.40, change: 0, history: [], volume: 0, volatility: 0.025, trend: 0 }
-        };
-
-        const COMMISSION_RATE = 0.001425;
-        const TAX_RATE = 0.003;
-        const INITIAL_CASH = 100000;
-
-        let cash = INITIAL_CASH;
-        let portfolio = {};
-        let quantities = {};
-        let portfolioHistory = [];
-        let selectedStock = null;
-        let mainChart = null;
-        let miniCharts = {};
-        let isMarketOpen = true;
-        let marketTime = new Date();
-        let transactions = [];
-        let timeframe = 'all';
-        let dayStartAssets = INITIAL_CASH;
-
-        Object.keys(stocks).forEach(symbol => {
-            quantities[symbol] = 1;
-            for (let i = 0; i < 50; i++) {
-                stocks[symbol].history.push(stocks[symbol].price);
-            }
-            stocks[symbol].trend = (Math.random() - 0.5) * 0.002;
-        });
-
-        portfolioHistory.push({value: INITIAL_CASH, time: new Date()});
-
-        // 從 localStorage 載入數據
-        function loadData() {
-            try {
-                const saved = localStorage.getItem('stockSimulatorData');
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    cash = data.cash || INITIAL_CASH;
-                    portfolio = data.portfolio || {};
-                    transactions = data.transactions || [];
-                    portfolioHistory = data.portfolioHistory || [{value: INITIAL_CASH, time: new Date()}];
-                    dayStartAssets = data.dayStartAssets || INITIAL_CASH;
-                    
-                    // 還原時間物件
-                    portfolioHistory = portfolioHistory.map(h => ({
-                        value: h.value,
-                        time: new Date(h.time)
-                    }));
-                    
-                    transactions = transactions.map(t => ({
-                        ...t,
-                        time: new Date(t.time)
-                    }));
-                    
-                    console.log('✅ 已從 localStorage 載入數據');
-                    showMessage('✅ 已載入上次的投資記錄', 'success');
-                } else {
-                    console.log('ℹ️ 沒有找到暫存數據，使用預設值');
-                }
-            } catch (error) {
-                console.error('❌ 載入數據失敗:', error);
-                showMessage('⚠️ 載入數據失敗，使用預設值', 'error');
-            }
-        }
-
-        // 儲存數據到 localStorage
-        function saveGameData() {
-            try {
-                const dataToSave = {
-                    cash: cash,
-                    portfolio: portfolio,
-                    transactions: transactions,
-                    portfolioHistory: portfolioHistory,
-                    dayStartAssets: dayStartAssets,
-                    lastSaved: new Date().toISOString()
-                };
-                
-                localStorage.setItem('stockSimulatorData', JSON.stringify(dataToSave));
-                
-                // 顯示儲存提示
-                const indicator = document.getElementById('saveIndicator');
-                indicator.classList.add('show');
-                setTimeout(() => {
-                    indicator.classList.remove('show');
-                }, 2000);
-                
-                console.log('💾 數據已儲存到 localStorage');
-            } catch (error) {
-                console.error('❌ 儲存數據失敗:', error);
-                if (error.name === 'QuotaExceededError') {
-                    showMessage('⚠️ 儲存空間不足，請清理部分歷史數據', 'error');
-                }
-            }
-        }
-
-        // 重置遊戲
-        function resetGame() {
-            if (confirm('⚠️ 確定要重置所有數據嗎？此操作無法復原！')) {
-                cash = INITIAL_CASH;
-                portfolio = {};
-                transactions = [];
-                portfolioHistory = [{value: INITIAL_CASH, time: new Date()}];
-                dayStartAssets = INITIAL_CASH;
-                
-                // 清除 localStorage
-                localStorage.removeItem('stockSimulatorData');
-                
-                renderStocks();
-                updateDashboard();
-                renderTransactions();
-                updateMainChart();
-                
-                showMessage('🔄 已重置所有數據', 'success');
-                console.log('🔄 已清除 localStorage 數據');
-            }
-        }
-
-        // 匯出數據
-        function exportData() {
-            const dataStr = JSON.stringify({
-                cash: cash,
-                portfolio: portfolio,
-                transactions: transactions,
-                portfolioHistory: portfolioHistory,
-                exportTime: new Date().toISOString(),
-                version: '1.0'
-            }, null, 2);
-            
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `stock-portfolio-${Date.now()}.json`;
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            showMessage('📥 投資組合已匯出', 'success');
-        }
-
-        // 匯入數據
-        function importData() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const data = JSON.parse(event.target.result);
-                        
-                        if (confirm('⚠️ 匯入數據會覆蓋現有數據，確定要繼續嗎？')) {
-                            cash = data.cash || INITIAL_CASH;
-                            portfolio = data.portfolio || {};
-                            transactions = data.transactions || [];
-                            portfolioHistory = data.portfolioHistory || [{value: INITIAL_CASH, time: new Date()}];
-                            dayStartAssets = data.dayStartAssets || INITIAL_CASH;
-                            
-                            // 還原時間物件
-                            portfolioHistory = portfolioHistory.map(h => ({
-                                value: h.value,
-                                time: new Date(h.time)
-                            }));
-                            
-                            transactions = transactions.map(t => ({
-                                ...t,
-                                time: new Date(t.time)
-                            }));
-                            
-                            saveGameData();
-                            renderStocks();
-                            updateDashboard();
-                            renderTransactions();
-                            updateMainChart();
-                            
-                            showMessage('✅ 數據匯入成功', 'success');
-                        }
-                    } catch (error) {
-                        console.error('❌ 匯入失敗:', error);
-                        showMessage('❌ 匯入失敗，檔案格式錯誤', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
-        }
-
-        function updateMarketStatus() {
-            const hour = marketTime.getHours();
-            const minute = marketTime.getMinutes();
-            const day = marketTime.getDay();
-            
-            isMarketOpen = (day < 9 );
-            
-            const indicator = document.getElementById('statusIndicator');
-            const statusText = document.getElementById('statusText');
-            const timeText = document.getElementById('marketTime');
-            
-            if (isMarketOpen) {
-                indicator.className = 'status-indicator open';
-                statusText.textContent = '🟢 市場開盤中';
-            } else {
-                indicator.className = 'status-indicator closed';
-                statusText.textContent = '🔴 市場休市';
-            }
-            
-            timeText.textContent = marketTime.toLocaleString('zh-TW', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        }
-
-        function updateStockPrices() {
-            if (!isMarketOpen) {
-                marketTime.setMinutes(marketTime.getMinutes() + 1);
-                updateMarketStatus();
-                return;
-            }
-
-            Object.keys(stocks).forEach(symbol => {
-                const stock = stocks[symbol];
-                
-                const trendComponent = stock.trend;
-                const randomComponent = (Math.random() - 0.5) * stock.volatility;
-                const changePercent = trendComponent + randomComponent;
-                
-                stock.price *= (1 + changePercent);
-                
-                const maxChange = 0.10;
-                const minPrice = stock.basePrice * (1 - maxChange);
-                const maxPrice = stock.basePrice * (1 + maxChange);
-                stock.price = Math.max(minPrice, Math.min(maxPrice, stock.price));
-                
-                stock.change = ((stock.price - stock.basePrice) / stock.basePrice) * 100;
-                
-                stock.volume = Math.floor(Math.random() * 1000000) + 500000;
-                
-                stock.history.push(stock.price);
-                if (stock.history.length > 100) {
-                    stock.history.shift();
-                }
-                
-                if (Math.random() < 0.1) {
-                    stock.trend = (Math.random() - 0.5) * 0.002;
-                }
-            });
-            
-            let stockValue = 0;
-            Object.keys(portfolio).forEach(symbol => {
-                stockValue += portfolio[symbol].quantity * stocks[symbol].price;
-            });
-            const totalAssets = cash + stockValue;
-            portfolioHistory.push({value: totalAssets, time: new Date(marketTime)});
-            if (portfolioHistory.length > 200) {
-                portfolioHistory.shift();
-            }
-            
-            marketTime.setSeconds(marketTime.getSeconds() + 30);
-            updateMarketStatus();
-            renderStocks();
-            updateDashboard();
-            updateMainChart();
-        }
-
-        function createMainChart() {
-            const ctx = document.getElementById('mainChart').getContext('2d');
-            mainChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: '總資產',
-                        data: [],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: '#667eea'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            padding: 12,
-                            callbacks: {
-                                label: function(context) {
-                                    return '$' + context.parsed.y.toFixed(2);
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toFixed(0);
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0,0,0,0.05)'
-                            }
-                        },
-                        x: {
-                            display: true,
-                            grid: {
-                                display: false
-                            }
-                        }
-                    },
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    }
-                }
-            });
-        }
-
-        function changeTimeframe(tf) {
-            timeframe = tf;
-            document.querySelectorAll('.chart-controls button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            updateMainChart();
-        }
-
-        function updateMainChart() {
-            if (!mainChart) return;
-            
-            let data, labels;
-            
-            if (selectedStock) {
-                const stock = stocks[selectedStock];
-                let history = stock.history;
-                
-                if (timeframe === 'day') {
-                    history = history.slice(-20);
-                } else if (timeframe === 'week') {
-                    history = history.slice(-50);
-                }
-                
-                data = history;
-                labels = history.map((_, i) => '');
-                
-                mainChart.data.labels = labels;
-                mainChart.data.datasets[0].data = data;
-                mainChart.data.datasets[0].label = `${selectedStock} - ${stock.name}`;
-                mainChart.data.datasets[0].borderColor = stock.change >= 0 ? '#28a745' : '#dc3545';
-                mainChart.data.datasets[0].backgroundColor = stock.change >= 0 ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)';
-                mainChart.data.datasets[0].pointBackgroundColor = stock.change >= 0 ? '#28a745' : '#dc3545';
-            } else {
-                let history = portfolioHistory;
-                
-                if (timeframe === 'day') {
-                    history = history.slice(-20);
-                } else if (timeframe === 'week') {
-                    history = history.slice(-50);
-                }
-                
-                data = history.map(h => h.value);
-                labels = history.map(h => h.time.toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit'}));
-                
-                mainChart.data.labels = labels;
-                mainChart.data.datasets[0].data = data;
-                mainChart.data.datasets[0].label = '總資產';
-                mainChart.data.datasets[0].borderColor = '#667eea';
-                mainChart.data.datasets[0].backgroundColor = 'rgba(102, 126, 234, 0.1)';
-                mainChart.data.datasets[0].pointBackgroundColor = '#667eea';
-            }
-            
-            mainChart.update('none');
-        }
-
-        function selectStock(symbol) {
-            if (selectedStock === symbol) {
-                selectedStock = null;
-                document.getElementById('chartTitle').textContent = '📊 投資組合總資產走勢';
-            } else {
-                selectedStock = symbol;
-                document.getElementById('chartTitle').textContent = `📊 ${symbol} - ${stocks[symbol].name} 價格走勢圖`;
-            }
-            updateMainChart();
-            renderStocks();
-        }
-
-        function renderStocks() {
-            const grid = document.getElementById('stockGrid');
-            grid.innerHTML = '';
-            
-            Object.keys(stocks).forEach(symbol => {
-                const stock = stocks[symbol];
-                const holding = portfolio[symbol];
-                const quantity = quantities[symbol];
-                
-                let changeClass = 'neutral';
-                if (stock.change > 0.1) changeClass = 'up';
-                else if (stock.change < -0.1) changeClass = 'down';
-                
-                const changeSign = stock.change >= 0 ? '+' : '';
-                
-                const subtotal = stock.price * quantity;
-                const commission = subtotal * COMMISSION_RATE;
-                const totalCost = subtotal + commission;
-                
-                let profitBadge = '';
-                if (holding) {
-                    const currentValue = stock.price * holding.quantity;
-                    const cost = holding.totalCost;
-                    const profit = currentValue - cost;
-                    const profitPercent = (profit / cost) * 100;
-                    const profitClass = profit >= 0 ? 'positive' : 'negative';
-                    profitBadge = `<div class="profit-badge ${profitClass}">${profit >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%</div>`;
-                }
-                
-                const volumePercent = Math.min((stock.volume / 2000000) * 100, 100);
-                
-                const card = document.createElement('div');
-                card.className = 'stock-card' + (selectedStock === symbol ? ' selected' : '');
-                card.innerHTML = `
-                    ${profitBadge}
-                    <div onclick="selectStock('${symbol}')">
-                        <div class="stock-header">
-                            <div>
-                                <div class="stock-symbol">${symbol}</div>
-                                <div class="stock-name">${stock.name}</div>
-                                <div class="stock-sector">${stock.sector}</div>
-                            </div>
-                            <div class="stock-price-info">
-                                <div class="current-price">$${stock.price.toFixed(2)}</div>
-                                <span class="price-change ${changeClass}">${changeSign}${stock.change.toFixed(2)}%</span>
-                            </div>
-                        </div>
-                        
-                        <div class="stock-stats">
-                            <div class="stat-item">
-                                <span class="stat-label">開盤</span>
-                                <span class="stat-value">$${stock.basePrice.toFixed(2)}</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">成交量</span>
-                                <span class="stat-value">${(stock.volume / 1000).toFixed(0)}K</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">最高</span>
-                                <span class="stat-value">$${(Math.max(...stock.history.slice(-20))).toFixed(2)}</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">最低</span>
-                                <span class="stat-value">$${(Math.min(...stock.history.slice(-20))).toFixed(2)}</span>
-                            </div>
-                        </div>
-                        
-                        <div class="volume-bar">
-                            <div class="volume-fill" style="width: ${volumePercent}%"></div>
-                        </div>
-                        
-                        <div class="mini-chart">
-                            <canvas id="mini-${symbol}"></canvas>
-                        </div>
-                    </div>
-                    
-                    ${holding ? `
-                        <div class="holding-info">
-                            📊 持有 <strong>${holding.quantity}</strong> 股 | 
-                            成本 <strong>$${holding.avgPrice.toFixed(2)}</strong> | 
-                            市值 <strong>$${(stock.price * holding.quantity).toFixed(2)}</strong>
-                        </div>
-                    ` : ''}
-                    
-                    <div class="trade-controls">
-                        <div class="quantity-input">
-                            <button onclick="changeQuantity('${symbol}', -1)">−</button>
-                            <input type="number" value="${quantity}" min="1" 
-                                   onchange="updateQuantity('${symbol}', this.value)">
-                            <button onclick="changeQuantity('${symbol}', 1)">+</button>
-                        </div>
-                    </div>
-                    
-                    <div class="quick-amount">
-                        <button onclick="setQuantity('${symbol}', 1)">1股</button>
-                        <button onclick="setQuantity('${symbol}', 10)">10股</button>
-                        <button onclick="setQuantity('${symbol}', 100)">100股</button>
-                        <button onclick="setQuantity('${symbol}', Math.floor(cash / ${stock.price}))">全買</button>
-                    </div>
-                    
-                    <div class="cost-info">
-                        <div class="cost-row">
-                            <span>股價 × 數量</span>
-                            <span>$${subtotal.toFixed(2)}</span>
-                        </div>
-                        <div class="cost-row">
-                            <span>手續費 (0.1425%)</span>
-                            <span>$${commission.toFixed(2)}</span>
-                        </div>
-                        <div class="cost-row total">
-                            <span>買入總計</span>
-                            <span>$${totalCost.toFixed(2)}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="trade-buttons">
-                        <button class="btn-trade btn-buy" onclick="buyStock('${symbol}')" ${!isMarketOpen ? 'disabled' : ''}>
-                            💰 買入
-                        </button>
-                        <button class="btn-trade btn-sell" onclick="sellStock('${symbol}')" 
-                                ${!holding || !isMarketOpen ? 'disabled' : ''}>
-                            💸 賣出
-                        </button>
-                    </div>
-                `;
-                
-                grid.appendChild(card);
-                
-                setTimeout(() => createMiniChart(symbol), 0);
-            });
-        }
-
-        function createMiniChart(symbol) {
-            const canvas = document.getElementById(`mini-${symbol}`);
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            const stock = stocks[symbol];
-            
-            if (miniCharts[symbol]) {
-                miniCharts[symbol].destroy();
-            }
-            
-            miniCharts[symbol] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array(stock.history.length).fill(''),
-                    datasets: [{
-                        data: stock.history.slice(-30),
-                        borderColor: stock.change >= 0 ? '#28a745' : '#dc3545',
-                        backgroundColor: stock.change >= 0 ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    scales: {
-                        y: { display: false },
-                        x: { display: false }
-                    }
-                }
-            });
-        }
-
-        function changeQuantity(symbol, delta) {
-            quantities[symbol] = Math.max(1, quantities[symbol] + delta);
-            renderStocks();
-        }
-
-        function updateQuantity(symbol, value) {
-            quantities[symbol] = Math.max(1, parseInt(value) || 1);
-            renderStocks();
-        }
-
-        function setQuantity(symbol, value) {
-            quantities[symbol] = Math.max(1, Math.floor(value));
-            renderStocks();
-        }
-
-        function showMessage(text, type) {
-            const msg = document.getElementById('message');
-            msg.textContent = text;
-            msg.className = `message ${type}`;
+        const encrypted = "${encryptedData}";
+        const els = { btn: document.getElementById('btn'), pwd: document.getElementById('pwd'), msg: document.getElementById('msg'), box: document.getElementById('auth-container'), viewer: document.getElementById('viewer') };
+        function decrypt() {
+            const password = els.pwd.value;
+            if (!password) { showError(); return; }
+            els.btn.innerText = "VERIFYING..."; els.btn.style.opacity = "0.7";
             setTimeout(() => {
-                msg.classList.add('hidden');
-            }, 3000);
+                try {
+                    const bytes = CryptoJS.AES.decrypt(encrypted, password);
+                    const originalText = bytes.toString(CryptoJS.enc.Utf8);
+                    if (!originalText || !originalText.startsWith('<')) throw new Error(); 
+                    els.box.classList.add('unlocking');
+                    setTimeout(() => { els.box.style.display = 'none'; const blob = new Blob([originalText], {type: 'text/html'}); els.viewer.src = URL.createObjectURL(blob); els.viewer.style.display = 'block'; requestAnimationFrame(() => els.viewer.style.opacity = '1'); }, 500);
+                } catch (e) { showError(); els.btn.innerText = "UNLOCK"; els.btn.style.opacity = "1"; els.pwd.value = ''; }
+            }, 100); 
         }
+        function showError() { els.msg.style.opacity = '1'; els.box.classList.remove('shake'); void els.box.offsetWidth; els.box.classList.add('shake'); setTimeout(() => els.msg.style.opacity = '0', 2000); }
+        els.btn.addEventListener('click', decrypt); els.pwd.addEventListener('keypress', (e) => { if (e.key === 'Enter') decrypt(); }); window.onload = () => els.pwd.focus();
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 64, 64); document.getElementById('favicon').href = canvas.toDataURL();
+   <\/script>  
+</body>
+</html>`;
+}
 
-        function buyStock(symbol) {
-            if (!isMarketOpen) {
-                showMessage('⏰ 市場休市中，無法交易！', 'error');
-                return;
-            }
-            
-            const quantity = quantities[symbol];
-            const price = stocks[symbol].price;
-            const subtotal = price * quantity;
-            const commission = subtotal * COMMISSION_RATE;
-            const totalCost = subtotal + commission;
-            
-            if (totalCost > cash) {
-                showMessage(`💸 現金不足！還差 $${(totalCost - cash).toFixed(2)}`, 'error');
-                return;
-            }
-            
-            cash -= totalCost;
-            
-            if (!portfolio[symbol]) {
-                portfolio[symbol] = { quantity: 0, avgPrice: 0, totalCost: 0 };
-            }
-            
-            const oldTotalCost = portfolio[symbol].totalCost;
-            portfolio[symbol].quantity += quantity;
-            portfolio[symbol].totalCost = oldTotalCost + totalCost;
-            portfolio[symbol].avgPrice = portfolio[symbol].totalCost / portfolio[symbol].quantity;
-            
-            transactions.unshift({
-                type: 'buy',
-                symbol: symbol,
-                name: stocks[symbol].name,
-                quantity: quantity,
-                price: price,
-                commission: commission,
-                total: totalCost,
-                time: new Date(marketTime)
-            });
-            
-            showMessage(`✅ 買入成功！${symbol} × ${quantity} 股 @ $${price.toFixed(2)}`, 'success');
-            renderStocks();
-            updateDashboard();
-            renderTransactions();
-            saveGameData();
+// --- 一般功能 ---
+function runHTML(){
+  if(currentTab<0) return;
+  let html = tabs[currentTab].editor.getValue();
+  const useConsole = document.getElementById("useConsole").checked;
+  const iconCss = '<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">';
+
+  let toolsScript = getMinimalErrorLoggerScript();
+  if (useConsole) { toolsScript += getConsoleScript(); }
+  
+  if (html.includes("<head>")) { html = html.replace("<head>", "<head>" + iconCss); } else { html = iconCss + html; }
+  if (html.includes("<body")) { html = html.replace(/<body[^>]*>/i, (match) => match + toolsScript); } else { html = toolsScript + html; }
+
+  previewOverlay.style.display = "flex";
+  const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+}
+
+function getMinimalErrorLoggerScript() {
+  return `<script>(function(){if (!window.__errorBuffer) { window.__errorBuffer = []; } const originalError = console.error; console.error = function(...args) { try { const errorStr = args.map(a => { if (a instanceof Error) return a.stack || a.message; if (typeof a === 'object') return JSON.stringify(a); return String(a); }).join(' '); if (errorStr && !window.__errorBuffer.includes(errorStr)) { window.__errorBuffer.push(errorStr); } } catch(e) {} originalError.apply(console, args); }; const originalOnError = window.onerror; window.onerror = function(msg, url, line, col, error) { const errorStr = msg + ' (Line: ' + line + ')'; if (!window.__errorBuffer.includes(errorStr)) { window.__errorBuffer.push(errorStr); } if (originalOnError) { return originalOnError.apply(window, arguments); } return false; }; window.addEventListener('unhandledrejection', function(event) { const errorStr = 'Unhandled Promise Rejection: ' + (event.reason ? (event.reason.stack || event.reason) : 'Unknown'); if (!window.__errorBuffer.includes(errorStr)) { window.__errorBuffer.push(errorStr); } }); })();<\/script>`;
+}
+
+function getConsoleScript() {
+  return `<div id="v-console-container" style="position:fixed;bottom:0;left:0;right:0;height:220px;background:#1e1e1e;color:#fff;z-index:999999;border-top:2px solid #6272a4;display:flex;flex-direction:column;font-family:monospace;font-size:13px;transition:transform 0.3s;transform:translateY(0);"><div style="background:#2c2c2c;height:32px;padding:0 8px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #444;flex-shrink:0;white-space:nowrap;overflow:hidden;"><span style="color: white;font-weight:bold;">Console Output</span><div style="display:flex;align-items:center;"><button onclick="document.getElementById('v-console-logs').innerHTML=''" title="Clear Log" style="background:#444;color:#fff;border:none;padding:0;width:28px;height:24px;cursor:pointer;margin-right:8px;border-radius:4px;display:flex;align-items:center;justify-content:center;"><i class="ri-delete-bin-line"></i></button><button onclick="document.getElementById('v-console-container').style.transform='translateY(185px)'" title="Minimize" style="background:#444;color:#fff;border:none;padding:0;width:28px;height:24px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;"><i class="ri-arrow-down-s-line" style="font-size:16px;"></i></button><button onclick="document.getElementById('v-console-container').style.transform='translateY(0)'" title="Maximize" style="background:#444;color:#fff;border:none;padding:0;width:28px;height:24px;cursor:pointer;border-radius:4px;margin-left:4px;display:flex;align-items:center;justify-content:center;"><i class="ri-arrow-up-s-line" style="font-size:16px;"></i></button></div></div><div id="v-console-logs" style="flex:1;overflow-y:auto;padding:8px;background:rgba(0,0,0,0.3);"></div><div style="border-top:1px solid #444;display:flex;background:#2c2c2c;padding:4px;flex-shrink:0;align-items:center;"><span style="color:#50fa7b;margin-right:4px;font-weight:bold;">&gt;</span><input type="text" id="v-console-input" autocomplete="off" placeholder="Run JS..." style="flex:1;background:transparent;border:none;color:#fff;font-family:monospace;outline:none;min-width:0;"><button id="v-console-run-btn" title="Run" style="background:#444;color:#fff;border:none;padding:0;width:32px;height:24px;margin-left:4px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="ri-play-fill"></i></button></div></div><script>(function(){if (!window.__errorBuffer) { window.__errorBuffer = []; } const logContainer = document.getElementById('v-console-logs'); const input = document.getElementById('v-console-input'); const runBtn = document.getElementById('v-console-run-btn'); function formatArg(arg) { if (arg === null) return 'null'; if (arg === undefined) return 'undefined'; if (typeof arg === 'object') { try { return JSON.stringify(arg, null, 2); } catch(e) { return String(arg); } } return String(arg); } function appendLog(type, args) { const div = document.createElement('div'); div.style.borderBottom = '1px solid #333'; div.style.padding = '2px 0'; div.style.wordBreak = 'break-all'; if(type === 'error') div.style.color = '#ff5555'; else if(type === 'warn') div.style.color = '#f1fa8c'; else if(type === 'command') div.style.color = '#8be9fd'; else if(type === 'result') div.style.color = '#bd93f9'; else div.style.color = '#f8f8f2'; let msgContent = args.map(formatArg).join(' '); if (type === 'error') { if (!window.__errorBuffer.includes(msgContent)) { window.__errorBuffer.push(msgContent); } } let msg = ''; if (type === 'command') msg = '> ' + args[0]; else if (type === 'result') msg = '< ' + formatArg(args[0]); else msg = '[' + type.toUpperCase() + '] ' + msgContent; div.textContent = msg; logContainer.appendChild(div); logContainer.scrollTop = logContainer.scrollHeight; } const originalLog = console.log; const originalError = console.error; const originalWarn = console.warn; console.log = function(...args) { appendLog('log', args); originalLog.apply(console, args); }; console.error = function(...args) { appendLog('error', args); originalError.apply(console, args); }; console.warn = function(...args) { appendLog('warn', args); originalWarn.apply(console, args); }; let cmdHistory = []; let historyIdx = -1; function executeCommand() { const cmd = input.value; if (!cmd) return; cmdHistory.push(cmd); historyIdx = cmdHistory.length; appendLog('command', [cmd]); try { const result = window.eval(cmd); appendLog('result', [result]); } catch (err) { appendLog('error', [err]); } input.value = ''; } runBtn.onclick = executeCommand; input.addEventListener('keydown', function(e) { if (e.key === 'Enter') { executeCommand(); } else if (e.key === 'ArrowUp') { if (historyIdx > 0) { historyIdx--; this.value = cmdHistory[historyIdx]; } } else if (e.key === 'ArrowDown') { if (historyIdx < cmdHistory.length - 1) { historyIdx++; this.value = cmdHistory[historyIdx]; } else { historyIdx = cmdHistory.length; this.value = ''; } } }); })();<\/script>`;
+}
+
+// --- DB Logic ---
+let db;
+const DB_NAME = "DevHtmlDB";
+const STORE_NAME = "tabs_v2"; 
+const DB_VERSION = 2; 
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (db.objectStoreNames.contains("tabs")) { db.deleteObjectStore("tabs"); }
+            if (!db.objectStoreNames.contains(STORE_NAME)) { db.createObjectStore(STORE_NAME, { keyPath: "id" }); }
+        };
+        request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+let saveTimer = null;
+function saveTabsToStorage() {
+    saveStatus.classList.remove("saved");
+    saveStatus.classList.add("saving");
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        if (!db) return;
+        if (currentTab >= 0 && tabs[currentTab] && tabs[currentTab].editor) {
+            tabs[currentTab].content = tabs[currentTab].editor.getValue();
+            tabs[currentTab].history = tabs[currentTab].editor.getHistory();
         }
+        const saveData = {
+            id: 'auto-save-session',
+            data: tabs.map(t => ({ name: t.name, content: t.content, history: t.history }))
+        };
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        store.put(saveData).onsuccess = () => {
+            saveStatus.classList.remove("saving");
+            saveStatus.classList.add("saved");
+            setTimeout(() => saveStatus.classList.remove("saved"), 1000); 
+        };
+    }, 200); 
+}
 
-        function sellStock(symbol) {
-            if (!isMarketOpen) {
-                showMessage('⏰ 市場休市中，無法交易！', 'error');
-                return;
+async function loadTabsFromStorage() {
+    try {
+        await initDB();
+        const transaction = db.transaction([STORE_NAME], "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        store.get('auto-save-session').onsuccess = (e) => {
+            const result = e.target.result;
+            if (result && result.data && result.data.length > 0) {
+                tabs = []; editorWrapper.innerHTML = ""; document.querySelectorAll(".tab").forEach(e => e.remove());
+                result.data.forEach(d => addTab(d.name, d.content, d.history, false));
+                switchTab(0);
+            } else {
+                addTab("Template", "<!DOCTYPE html>\n<html>\n<head>\n<title>My Page</title>\n<style>\n  body { color: white; background: #222; font-family: sans-serif; padding: 20px; }\n  h1 { color: #ff5555; }\n</style>\n</head>\n<body>\n  <h1>Hello World</h1>\n  <script>\n    console.log('Ready');\n  <\/script>\n</body>\n</html>", null);
             }
-            
-            const quantity = quantities[symbol];
-            
-            if (!portfolio[symbol] || portfolio[symbol].quantity < quantity) {
-                showMessage(`❌ 持股不足！目前只有 ${portfolio[symbol]?.quantity || 0} 股`, 'error');
-                return;
+        };
+    } catch (err) { addTab("Error", "DB Fail"); }
+}
+
+function createEditor(content='', history=null){
+  const e = CodeMirror(editorWrapper,{
+    value: content, mode: 'htmlmixed', theme: 'dracula', lineNumbers: true, 
+    lineWrapping: true, indentUnit: 4, tabSize: 4, indentWithTabs: true,
+    inputStyle: 'contenteditable', 
+    spellcheck: false, autocorrect: false, autocapitalize: false,
+    smartIndent: false, electricChars: false, 
+    matchBrackets: true, // ✨ 新增：啟用括號匹配
+    autoCloseBrackets: isAndroid ? false : "()[]{}''\"\"", 
+    autoCloseTags: true, matchTags: {bothTags: true},
+    extraKeys: {
+        "Enter": (cm) => {
+            cm.replaceSelection("\n"); 
+            const prevLineText = cm.getLine(cm.getCursor().line - 1);
+            if (!prevLineText) return;
+            const match = prevLineText.match(/^\s*/);
+            if (match && match[0]) { cm.replaceSelection(match[0]); }
+        },
+        "'<'": isAndroid ? null : (cm) => { cm.replaceSelection("<>"); cm.setCursor(cm.getCursor().line, cm.getCursor().ch - 1); },
+        "'>'": isAndroid ? null : (cm) => handleGreaterThan(cm),
+        "'/'": isAndroid ? null : (cm) => handleSlash(cm)
+    }
+  });
+  if (history) { try { e.setHistory(history); } catch(err) { e.clearHistory(); } } else { e.clearHistory(); }
+  
+  // ✨ FIX: 監聽編輯器游標活動 (V21.2: 移除舊的自動選色邏輯，改為純點擊)
+  e.on("cursorActivity", (cm) => {
+      // 1. 原有的隱藏選單邏輯
+      if (!cm.getSelection()) {
+          hideCtxMenu();
+      }
+  });
+
+  function handleGreaterThan(cm) {
+      const pos = cm.getCursor();
+      if (cm.getRange(pos, {line: pos.line, ch: pos.ch + 1}) === '>') {
+          cm.setCursor({line: pos.line, ch: pos.ch + 1}); setTimeout(() => checkAndCloseTag(cm), 0); return;
+      } return CodeMirror.Pass;
+  }
+  function handleSlash(cm) {
+      cm.replaceSelection("/"); setTimeout(() => {
+          const pos = cm.getCursor();
+          if (cm.getRange({line: pos.line, ch: pos.ch - 2}, {line: pos.line, ch: pos.ch - 1}) === "<") checkAndCloseTag(cm, true);
+      }, 0);
+  }
+  function checkAndCloseTag(cm, isSlashClose = false) {
+      const tok = cm.getTokenAt(cm.getCursor());
+      const inner = CodeMirror.innerMode(cm.getMode(), tok.state);
+      if (inner.mode.name !== "xml") return;
+      const tagName = inner.state.context && inner.state.context.tagName;
+      const voidTags = ["area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"];
+      if (tagName && !voidTags.includes(tagName)) {
+          if (isSlashClose) {
+              const pos = cm.getCursor();
+              if (cm.getRange(pos, {line: pos.line, ch: pos.ch + 1}) === ">") {
+                  cm.replaceSelection(tagName); cm.setCursor({line: pos.line, ch: pos.ch + tagName.length + 1});
+              } else cm.replaceSelection(tagName + ">");
+          } else {
+              cm.replaceSelection("</" + tagName + ">");
+              const c = cm.getCursor(); cm.setCursor(c.line, c.ch - (tagName.length + 3)); 
+          }
+      }
+  }
+
+  if (isAndroid) {
+      e.on("change", (cm, change) => {
+          try { 
+            if (change.origin !== "+input") return;
+            const text = change.text[0];
+            function androidPair(open, close) {
+               if (text === open) setTimeout(() => { const p = cm.getCursor(); cm.replaceRange(close, p); cm.setCursor(p); }, 0);
+               if (text === close) setTimeout(() => { const p = cm.getCursor(); if (cm.getRange(p, {line: p.line, ch: p.ch + 1}) === close) cm.replaceRange("", p, {line: p.line, ch: p.ch + 1}); }, 0);
             }
-            
-            const price = stocks[symbol].price;
-            const subtotal = price * quantity;
-            const commission = subtotal * COMMISSION_RATE;
-            const tax = subtotal * TAX_RATE;
-            const totalRevenue = subtotal - commission - tax;
-            
-            const costPerShare = portfolio[symbol].totalCost / portfolio[symbol].quantity;
-            const totalCost = costPerShare * quantity;
-            const profit = totalRevenue - totalCost;
-            
-            cash += totalRevenue;
-            portfolio[symbol].quantity -= quantity;
-            portfolio[symbol].totalCost -= totalCost;
-            
-            if (portfolio[symbol].quantity === 0) {
-                delete portfolio[symbol];
+            androidPair("<", ">"); androidPair("(", ")"); androidPair("[", "]"); androidPair("{", "}");
+            if (text === '"' || text === "'") {
+               setTimeout(() => { 
+                  const p = cm.getCursor(); const nextChar = cm.getRange(p, {line: p.line, ch: p.ch + 1});
+                  if (nextChar === text) { cm.replaceRange("", p, {line: p.line, ch: p.ch + 1}); } 
+                  else { cm.replaceRange(text, p); cm.setCursor(p); }
+               }, 0);
             }
-            
-            transactions.unshift({
-                type: 'sell',
-                symbol: symbol,
-                name: stocks[symbol].name,
-                quantity: quantity,
-                price: price,
-                commission: commission,
-                tax: tax,
-                total: totalRevenue,
-                profit: profit,
-                time: new Date(marketTime)
-            });
-            
-            const profitText = profit >= 0 ? `獲利 $${profit.toFixed(2)}` : `虧損 $${Math.abs(profit).toFixed(2)}`;
-            showMessage(`✅ 賣出成功！${symbol} × ${quantity} 股 @ $${price.toFixed(2)} | ${profitText}`, 'success');
-            renderStocks();
-            updateDashboard();
-            renderTransactions();
-            saveGameData();
+            if (text === ">") setTimeout(() => checkAndCloseTag(cm, false), 0);
+            if (text === "/") setTimeout(() => { const p = cm.getCursor(); if (cm.getRange({line: p.line, ch: p.ch - 2}, {line: p.line, ch: p.ch - 1}) === "<") checkAndCloseTag(cm, true); }, 0);
+          } catch(err) { console.warn("Android CM logic error", err); }
+      });
+  }
+  
+  // ✨ 整合顏色預覽觸發邏輯 (V19)
+  e.on("change", (cm, change) => {
+      if (change.origin === "+rename") return; 
+      saveTabsToStorage();
+      refreshSearch(); 
+      
+      // Debounce update for color decorators
+      if (cm._colorTimer) clearTimeout(cm._colorTimer);
+      cm._colorTimer = setTimeout(() => {
+          updateColorDecorators(cm);
+      }, 500); 
+  });
+  
+  // 初始化時執行一次顏色偵測
+  setTimeout(() => updateColorDecorators(e), 100);
+
+  return e;
+}
+
+// Tab Logic
+function addTab(name, content='', history=null, shouldSave = true){
+  if (name == null) { let i = 1; while (tabs.some(t => t.name === `Untitled ${i}`)) i++; name = `Untitled ${i}`; }
+  const bar=document.getElementById("tabBar");
+  const div=document.createElement("div"); div.className="tab"; div.draggable = true; 
+  const span=document.createElement("span"); span.textContent=name; div.appendChild(span);
+  
+  const close=document.createElement("span"); 
+  close.className="close-btn"; 
+  close.innerHTML='<i class="ri-close-line"></i>'; 
+  div.appendChild(close);
+  
+  const tab={name, element: div, editor:null, content, history};
+  tabs.push(tab);
+
+  function startRenaming() {
+    if(div.querySelector('input')) return;
+    const input = document.createElement("input"); input.type = "text"; input.value = span.textContent;
+    input.onclick = (e) => e.stopPropagation(); input.onblur = finishEdit;
+    input.onkeydown = (ev) => { if(ev.key==="Enter") finishEdit(); };
+    div.replaceChild(input, span); input.focus(); input.select();
+    function finishEdit(){ if(!input.parentNode) return; span.textContent = input.value || "未命名"; div.replaceChild(span, input); tab.name = span.textContent; saveTabsToStorage(); }
+  }
+  close.onclick=(e)=>{ e.stopPropagation(); closeTab(tabs.indexOf(tab)); };
+  div.onclick = () => { if (!isDraggingMobile) { if (currentTab === tabs.indexOf(tab)) startRenaming(); else switchTab(tabs.indexOf(tab)); } };
+  bar.insertBefore(div, document.getElementById("newTabBtn"));
+  if (shouldSave) { switchTab(tabs.length-1); saveTabsToStorage(); }
+}
+
+function switchTab(i){
+  if(currentTab>=0 && tabs[currentTab] && tabs[currentTab].editor){
+    tabs[currentTab].content = tabs[currentTab].editor.getValue();
+    tabs[currentTab].history = tabs[currentTab].editor.getHistory();
+    editorWrapper.innerHTML="";
+  }
+  currentTab=i; const t=tabs[i]; if(!t) return;
+  if(!t.editor) t.editor=createEditor(t.content, t.history);
+  editorWrapper.appendChild(t.editor.getWrapperElement());
+  t.editor.refresh(); t.editor.focus();
+  
+  // ✨ 切換分頁時，重新渲染顏色方塊 (V19)
+  updateColorDecorators(t.editor);
+
+  tabs.forEach((t,i)=>t.element.classList.toggle("active",i===currentTab));
+  refreshSearch();
+}
+
+function closeTab(i){
+  if(tabs[i].editor) tabs[i].content = tabs[i].editor.getValue();
+  tabs[i].element.remove(); tabs.splice(i,1);
+  if (tabs.length === 0) { currentTab = -1; editorWrapper.innerHTML = ""; addTab(); return; }
+  if(currentTab===i) { currentTab=-1; editorWrapper.innerHTML=""; } else if(currentTab>i) { currentTab--; }
+  tabs.forEach((t,i)=>t.element.classList.toggle("active",i===currentTab));
+  if (currentTab === -1) switchTab(Math.max(0, i - 1));
+  saveTabsToStorage();
+}
+
+// Utils
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().then(() => { document.body.classList.add('fullscreen-mode'); }).catch(err => { console.log(err.message); });
+  } else {
+    document.exitFullscreen(); document.body.classList.remove('fullscreen-mode');
+  }
+}
+function formatCode() {
+  if (currentTab < 0) return;
+  const editor = tabs[currentTab].editor;
+  const totalLines = editor.lineCount();
+  editor.operation(() => { for (let i = 0; i < totalLines; ++i) { editor.indentLine(i, "smart"); } });
+  refreshSearch();
+}
+function changeFontSize(delta) {
+    currentFontSize += delta;
+    if (currentFontSize < 10) currentFontSize = 10;
+    if (currentFontSize > 30) currentFontSize = 30;
+    document.documentElement.style.setProperty('--base-font-size', currentFontSize + 'px');
+}
+function insertTemplate() {
+    if (currentTab < 0) return;
+    const editor = tabs[currentTab].editor;
+    const template = `<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document</title>
+<style>
+    body { background: #222; color: #fff; padding: 20px; font-family: sans-serif; }
+</style>
+</head>
+<body>
+    <h1>Hello</h1>
+    <script>
+        console.log("Hello from Console!");
+    <\/script>
+</body>
+</html>`;
+    if (editor.getValue().trim() === "" || confirm("要覆蓋當前內容嗎？")) { editor.setValue(template); refreshSearch(); }
+}
+function downloadHTML(){
+  if(currentTab<0) return;
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(new Blob([tabs[currentTab].editor.getValue()],{type:'text/html'}));
+  link.download = (tabs[currentTab].name || "download") + ".html";
+  link.click();
+}
+function copyHTML(){ if(currentTab>=0) navigator.clipboard.writeText(tabs[currentTab].editor.getValue()).then(()=>alert("已複製程式碼")); }
+function pasteHTML(){ if(currentTab>=0) navigator.clipboard.readText().then(text=>{ tabs[currentTab].editor.setValue(text); saveTabsToStorage(); refreshSearch(); }); }
+function clearHTML(){ if(currentTab>=0 && confirm("確定要清空嗎?")) { tabs[currentTab].editor.setValue(""); saveTabsToStorage(); refreshSearch(); } }
+function editorUndo() { if(currentTab>=0) { tabs[currentTab].editor.undo(); tabs[currentTab].editor.focus(); } }
+function editorRedo() { if(currentTab>=0) { tabs[currentTab].editor.redo(); tabs[currentTab].editor.focus(); } }
+function openFile(){ document.getElementById("fileInput").click(); }
+
+document.getElementById("fileInput").onchange = (e) => {
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader(); 
+    r.onload = () => {
+        let name = f.name; const idx = name.lastIndexOf('.'); if(idx > 0) name = name.substring(0, idx);
+        addTab(name, r.result);
+    }; 
+    r.readAsText(f); e.target.value="";
+};
+document.getElementById("newTabBtn").onclick=()=>addTab();
+
+// Search
+let totalMatches = 0;
+let currentMatchIdx = 0;
+searchInput.addEventListener("input", refreshSearch);
+searchInput.addEventListener("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); if (e.shiftKey) findPrev(); else findNext(); } });
+function refreshSearch(){
+  if(currentTab<0) return;
+  const editor=tabs[currentTab].editor;
+  const query=searchInput.value;
+  editor.operation(()=>{ editor.getAllMarks().forEach(m=>m.clear()); });
+  if(!query) { searchCursor=null; searchCount.textContent = ""; totalMatches = 0; currentMatchIdx = 0; return; }
+  editor.operation(()=>{
+    totalMatches = 0;
+    const cursor = editor.getSearchCursor(query);
+    while(cursor.findNext()){ totalMatches++; editor.markText(cursor.from(), cursor.to(), {className: "cm-searching"}); }
+    searchCursor = editor.getSearchCursor(query);
+    updateSearchUI(0);
+  });
+}
+function updateSearchUI(idx) {
+  currentMatchIdx = idx;
+  if (totalMatches > 0) { searchCount.textContent = `${currentMatchIdx}/${totalMatches}`; } 
+  else { searchCount.textContent = searchInput.value ? "0/0" : ""; }
+}
+function highlightCurrent(from, to) {
+  if(currentTab<0) return;
+  const editor=tabs[currentTab].editor;
+  editor.getAllMarks().forEach(m => { if(m.className === "cm-active-search") m.clear(); });
+  editor.markText(from, to, {className: "cm-active-search"});
+}
+function findNext(){
+  if(currentTab<0) return;
+  const editor=tabs[currentTab].editor;
+  const query=searchInput.value;
+  if(!query) return;
+  if(!searchCursor) searchCursor = editor.getSearchCursor(query);
+  let found = searchCursor.findNext();
+  if(!found) { searchCursor = editor.getSearchCursor(query, {line: editor.lineCount(), ch: 0}); found = searchCursor.findNext(); }
+  if(found){
+    editor.setSelection(searchCursor.from(), searchCursor.to());
+    editor.scrollIntoView({from:searchCursor.from(), to:searchCursor.to()}, 20);
+    highlightCurrent(searchCursor.from(), searchCursor.to());
+    calculateCurrentIndex(editor, query, searchCursor.from());
+  }
+}
+function findPrev(){
+  if(currentTab<0) return;
+  const editor=tabs[currentTab].editor;
+  const query=searchInput.value;
+  if(!query) return;
+  if(!searchCursor) searchCursor = editor.getSearchCursor(query);
+  let found = searchCursor.findPrevious();
+  if(!found) { searchCursor = editor.getSearchCursor(query, {line: editor.lineCount(), ch: 0}); found = searchCursor.findPrevious(); }
+  if(found){
+    editor.setSelection(searchCursor.from(), searchCursor.to());
+    editor.scrollIntoView({from:searchCursor.from(), to:searchCursor.to()}, 20);
+    highlightCurrent(searchCursor.from(), searchCursor.to());
+    calculateCurrentIndex(editor, query, searchCursor.from());
+  }
+}
+function calculateCurrentIndex(editor, query, pos) {
+  let idx = 0;
+  let tempCursor = editor.getSearchCursor(query);
+  while(tempCursor.findNext()) { idx++; if (tempCursor.from().line === pos.line && tempCursor.from().ch === pos.ch) { updateSearchUI(idx); return; } }
+}
+
+// Drag & Drop
+tabBar.addEventListener("dragstart", (e) => { 
+    if (e.target.classList.contains("tab")) { draggedTab = e.target; setTimeout(() => draggedTab.classList.add("dragging"), 0); } 
+});
+tabBar.addEventListener("dragend", () => { 
+    if (draggedTab) { 
+        draggedTab.classList.remove("dragging"); draggedTab = null; 
+        updateTabsArrayOrder(); 
+        const activeTabElement = document.querySelector(".tab.active");
+        if (activeTabElement) { currentTab = tabs.findIndex(t => t.element === activeTabElement); }
+        saveTabsToStorage(); 
+    } 
+});
+tabBar.addEventListener("dragover", (e) => { 
+    e.preventDefault(); const dragging = document.querySelector(".dragging"); if (!dragging) return; 
+    const afterElement = getDragAfterElement(tabBar, e.clientX); 
+    const currentNext = dragging.nextElementSibling;
+    if (afterElement !== currentNext) {
+        if (afterElement == null) { tabBar.insertBefore(dragging, document.getElementById("newTabBtn")); } 
+        else { tabBar.insertBefore(dragging, afterElement); }
+    }
+});
+function getDragAfterElement(container, x) { 
+    const draggableElements = [...container.querySelectorAll(".tab:not(.dragging)")]; 
+    return draggableElements.reduce((closest, child) => { 
+        const box = child.getBoundingClientRect(); const offset = x - box.left - box.width / 2; 
+        if (offset < 0 && offset > closest.offset) return { offset: offset, element: child }; 
+        else return closest; 
+    }, { offset: Number.NEGATIVE_INFINITY }).element; 
+}
+function updateTabsArrayOrder() { 
+    const tabElements = [...document.querySelectorAll("#tabBar .tab")]; 
+    const newTabsArray = []; 
+    tabElements.forEach(tabElement => { 
+        const tabObject = tabs.find(t => t.element === tabElement); 
+        if (tabObject) newTabsArray.push(tabObject); 
+    }); 
+    tabs = newTabsArray; 
+}
+
+// Touch DnD
+tabBar.addEventListener("touchstart", (e) => { 
+    const targetTab = e.target.closest(".tab"); 
+    if (!targetTab || e.target.closest(".close-btn") || e.target.tagName === 'INPUT') return; 
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY; 
+    if (isDraggingMobile) return; 
+    touchTimer = setTimeout(() => { 
+        isDraggingMobile = true; draggedTab = targetTab; 
+        draggedTab.removeAttribute('draggable');
+        document.body.classList.add('is-dragging-mode');
+        ghostTab = draggedTab.cloneNode(true);
+        ghostTab.classList.add('tab-ghost'); ghostTab.classList.remove('active'); 
+        ghostTab.style.width = draggedTab.offsetWidth + 'px';
+        document.body.appendChild(ghostTab);
+        updateGhostPosition(e.touches[0]);
+        draggedTab.classList.add("dragging"); 
+        if (navigator.vibrate) navigator.vibrate(50);
+    }, 300); 
+}, { passive: true });
+
+function updateGhostPosition(touch) {
+    if (ghostTab) { 
+        const barRect = tabBar.getBoundingClientRect();
+        const fixedY = barRect.top + (barRect.height / 2);
+        ghostTab.style.left = touch.clientX + 'px'; ghostTab.style.top = fixedY + 'px'; 
+    }
+}
+
+tabBar.addEventListener("touchmove", (e) => { 
+    const currentX = e.touches[0].clientX; 
+    if (!isDraggingMobile) { 
+        const dx = Math.abs(currentX - startX); const dy = Math.abs(e.touches[0].clientY - startY); 
+        if (touchTimer && (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD)) { clearTimeout(touchTimer); touchTimer = null; }
+        return; 
+    } 
+    if (e.cancelable) e.preventDefault(); if (!draggedTab) return; 
+    updateGhostPosition(e.touches[0]); handleAutoScroll(currentX);
+    const afterElement = getDragAfterElement(tabBar, currentX); 
+    const currentNext = draggedTab.nextElementSibling;
+    if (afterElement !== currentNext) {
+         if (afterElement == null) { tabBar.insertBefore(draggedTab, document.getElementById("newTabBtn")); } 
+         else { tabBar.insertBefore(draggedTab, afterElement); }
+    }
+}, { passive: false });
+
+function finishTouchDrag(e) {
+    if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } 
+    document.body.classList.remove('is-dragging-mode');
+    if (ghostTab) { ghostTab.remove(); ghostTab = null; }
+    if (draggedTab) {
+        draggedTab.setAttribute('draggable', 'true');
+        if (isDraggingMobile) {
+            draggedTab.classList.remove("dragging"); updateTabsArrayOrder(); 
+            const activeTabElement = document.querySelector(".tab.active");
+            if (activeTabElement) { currentTab = tabs.findIndex(t => t.element === activeTabElement); }
+            saveTabsToStorage(); 
+        } else { draggedTab.classList.remove("dragging"); }
+    }
+    isDraggingMobile = false; draggedTab = null; 
+}
+tabBar.addEventListener("touchend", finishTouchDrag);
+tabBar.addEventListener("touchcancel", finishTouchDrag);
+function handleAutoScroll(x) {
+    const rect = tabBar.getBoundingClientRect(); const threshold = 40; 
+    if (x < rect.left + threshold) { tabBar.scrollLeft -= 5; } else if (x > rect.right - threshold) { tabBar.scrollLeft += 5; }
+}
+
+// --- Stealth Mode (隱形黑屏模式 - 鍵盤修復版) ---
+(function(){
+    const toggle = document.getElementById("stealthModeToggle");
+    const overlay = document.getElementById("stealthOverlay");
+    const unlockZone = document.getElementById("stealthUnlockZone");
+    const stealthInput = document.getElementById("stealthInput"); // 取得隱藏輸入框
+    let isInternalOperation = false;
+    const SECRET_CODE = "unlock"; // ✨ 設定你的解鎖密碼
+
+    // 攔截原生彈窗
+    const originalConfirm = window.confirm;
+    window.confirm = function(msg) { isInternalOperation = true; const result = originalConfirm(msg); setTimeout(() => { isInternalOperation = false; }, 200); return result; };
+    const originalAlert = window.alert;
+    window.alert = function(msg) { isInternalOperation = true; originalAlert(msg); setTimeout(() => { isInternalOperation = false; }, 200); };
+    const originalPrompt = window.prompt;
+    window.prompt = function(msg, defaultText) { isInternalOperation = true; const result = originalPrompt(msg, defaultText); setTimeout(() => { isInternalOperation = false; }, 200); return result; };
+    
+    const fileInput = document.getElementById("fileInput");
+    if(fileInput) { fileInput.addEventListener('click', () => { isInternalOperation = true; }); window.addEventListener('focus', () => { if(isInternalOperation) setTimeout(() => isInternalOperation = false, 500); }); }
+    
+    function activateStealth() { 
+        if (toggle.checked && overlay.style.display !== "block" && !isInternalOperation) { 
+            overlay.style.display = "block"; 
+            // ✨ 啟動時清空並對焦隱藏輸入框，喚起手機鍵盤
+            stealthInput.value = "";
+            stealthInput.focus();
+        } 
+    }
+    
+    function deactivateStealth() {
+        overlay.style.display = "none";
+        stealthInput.blur(); // 關閉鍵盤
+        // 嘗試將焦點還給編輯器 (選用)
+        if(currentTab >= 0 && tabs[currentTab].editor) tabs[currentTab].editor.focus();
+    }
+
+    // 監聽隱藏輸入框的輸入
+    stealthInput.addEventListener("input", (e) => {
+        if (stealthInput.value.toLowerCase().includes(SECRET_CODE)) {
+            deactivateStealth();
+            stealthInput.value = ""; // 清空
         }
+    });
 
-        function renderTransactions() {
-            const list = document.getElementById('transactionList');
-            
-            if (transactions.length === 0) {
-                list.innerHTML = '<div style="text-align: center; color: #999; padding: 40px;">尚無交易記錄</div>';
-                return;
-            }
-            
-            list.innerHTML = transactions.slice(0, 20).map(t => {
-                const typeText = t.type === 'buy' ? '買入' : '賣出';
-                const typeClass = t.type;
-                const typeIcon = t.type === 'buy' ? '📈' : '📉';
-                
-                let details = `${t.symbol} (${t.name}) × ${t.quantity}股 @ $${t.price.toFixed(2)}`;
-                if (t.type === 'sell' && t.profit !== undefined) {
-                    const profitColor = t.profit >= 0 ? '#28a745' : '#dc3545';
-                    details += ` | <span style="color: ${profitColor}; font-weight: bold;">${t.profit >= 0 ? '+' : ''}$${t.profit.toFixed(2)}</span>`;
-                }
-                
-                return `
-                    <div class="transaction-item ${typeClass}">
-                        <div class="transaction-info">
-                            <div class="transaction-type">${typeIcon} ${typeText}</div>
-                            <div class="transaction-details">${details}</div>
-                            <div class="transaction-details" style="margin-top: 5px; font-size: 0.8em;">
-                                ${t.time.toLocaleString('zh-TW')}
-                            </div>
-                        </div>
-                        <div class="transaction-amount" style="color: ${t.type === 'buy' ? '#dc3545' : '#28a745'}">
-                            ${t.type === 'buy' ? '-' : '+'}$${Math.abs(t.total).toFixed(2)}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+    // 點擊黑屏任意處：重新喚起鍵盤 (解決鍵盤被收起的問題)
+    overlay.addEventListener("click", (e) => {
+        stealthInput.focus();
+    });
+
+    window.addEventListener("blur", () => { if (isInternalOperation) return; if (document.activeElement && document.activeElement.tagName === "IFRAME") return; activateStealth(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) activateStealth(); });
+    
+    // --- 解鎖邏輯 ---
+    // 1. 電腦版雙擊
+    unlockZone.addEventListener("dblclick", (e) => { 
+        e.preventDefault(); e.stopPropagation(); deactivateStealth();
+    });
+
+    // 2. 手機版雙擊 (亦保留)
+    let lastTap = 0;
+    unlockZone.addEventListener('touchend', function(e) {
+        e.preventDefault(); 
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTap;
+        if (tapLength < 400 && tapLength > 0) {
+            deactivateStealth();
+            e.stopPropagation();
         }
+        lastTap = currentTime;
+    });
 
-        function updateDashboard() {
-            let stockValue = 0;
-            let stockCount = 0;
-            Object.keys(portfolio).forEach(symbol => {
-                stockValue += portfolio[symbol].quantity * stocks[symbol].price;
-                stockCount++;
-            });
+    // 攔截按鍵：只允許隱藏輸入框接收輸入，其他阻擋
+    window.addEventListener("keydown", (e) => { 
+        if (overlay.style.display === "block") { 
+            // ✨ 如果焦點在我們的隱藏輸入框，允許輸入
+            if (e.target === stealthInput) return;
             
-            const totalAssets = cash + stockValue;
-            const totalProfit = totalAssets - INITIAL_CASH;
-            const totalReturn = (totalProfit / INITIAL_CASH) * 100;
-            
-            const todayProfit = totalAssets - dayStartAssets;
-            const todayReturn = (todayProfit / dayStartAssets) * 100;
-            
-            document.getElementById('cash').textContent = `$${cash.toFixed(2)}`;
-            document.getElementById('stockValue').textContent = `$${stockValue.toFixed(2)}`;
-            document.getElementById('stockCount').textContent = `${stockCount} 檔股票`;
-            document.getElementById('totalAssets').textContent = `$${totalAssets.toFixed(2)}`;
-            document.getElementById('totalReturn').textContent = `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`;
-            
-            const profitEl = document.getElementById('totalProfit');
-            profitEl.textContent = `${totalProfit >= 0 ? '+' : ''}$${totalProfit.toFixed(2)}`;
-            profitEl.style.color = totalProfit >= 0 ? '#28a745' : '#dc3545';
-            
-            const percentEl = document.getElementById('profitPercent');
-            percentEl.textContent = `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`;
-            percentEl.style.color = totalReturn >= 0 ? '#28a745' : '#dc3545';
-            
-            const todayProfitEl = document.getElementById('todayProfit');
-            todayProfitEl.textContent = `${todayProfit >= 0 ? '+' : ''}$${todayProfit.toFixed(2)}`;
-            todayProfitEl.style.color = todayProfit >= 0 ? '#28a745' : '#dc3545';
-            
-            const todayReturnEl = document.getElementById('todayReturn');
-            todayReturnEl.textContent = `${todayReturn >= 0 ? '+' : ''}${todayReturn.toFixed(2)}%`;
-            todayReturnEl.style.color = todayReturn >= 0 ? '#28a745' : '#dc3545';
-        }
+            // 否則阻擋 (防止操作到底層編輯器)
+            e.preventDefault(); 
+            e.stopPropagation(); 
+            stealthInput.focus(); // 強制把焦點拉回來
+        } 
+    }, true);
 
-        // 初始化
-        loadData();
-        createMainChart();
-        updateMarketStatus();
-        renderStocks();
-        updateDashboard();
-        renderTransactions();
-        
-        // 每2秒更新股價
-        setInterval(updateStockPrices, 2000);
-        
-        // 每5秒自動儲存
-        setInterval(saveGameData, 5000);
-    </script>
+    overlay.addEventListener("contextmenu", (e) => { e.preventDefault(); return false; });
+})();
+
+loadTabsFromStorage();
+</script>
+
+<script>
+// --- 選取行數功能 & 右鍵選單 ---
+const selectOverlay = document.getElementById('selectOverlay');
+const lineStartInput = document.getElementById('lineStart');
+const lineEndInput = document.getElementById('lineEnd');
+const ctxMenu = document.getElementById('mobileContextMenu');
+
+function openSelectModal() {
+    if (currentTab < 0) return alert("請先建立或開啟一個檔案");
+    hideCtxMenu();
+    selectOverlay.style.display = "flex";
+    
+    const cursorLine = tabs[currentTab].editor.getCursor().line + 1;
+    lineStartInput.value = cursorLine;
+    lineEndInput.value = cursorLine;
+    
+    setTimeout(() => {
+        lineStartInput.focus();
+        lineStartInput.select();
+    }, 100);
+}
+
+function closeSelectModal() { selectOverlay.style.display = "none"; }
+
+function applyLineSelection() {
+    if (currentTab < 0) return;
+    let start = parseInt(lineStartInput.value);
+    let end = parseInt(lineEndInput.value);
+    if (isNaN(start) || isNaN(end)) return alert("請輸入數字");
+    if (start > end) [start, end] = [end, start]; 
+    
+    const editor = tabs[currentTab].editor;
+    const totalLines = editor.lineCount();
+    let fromLine = Math.max(0, start - 1);
+    let toLine = Math.min(totalLines - 1, end - 1);
+    const lastLineContent = editor.getLine(toLine);
+    const lastCharIndex = lastLineContent ? lastLineContent.length : 0;
+
+    editor.setSelection({ line: fromLine, ch: 0 }, { line: toLine, ch: lastCharIndex });
+    editor.scrollIntoView({ line: fromLine, ch: 0 }, 20);
+    editor.focus();
+    closeSelectModal();
+    setTimeout(() => { showContextMenuAtCursor(editor); }, 100);
+}
+
+function showContextMenuAtCursor(editor) {
+    const cursorCoords = editor.cursorCoords(true, "window");
+    let top = cursorCoords.top - 50; 
+    let left = cursorCoords.left;
+    if (top < 10) { top = cursorCoords.bottom + 10; }
+    const menuWidth = 180; 
+    if (left + menuWidth > window.innerWidth) { left = window.innerWidth - menuWidth - 10; }
+
+    ctxMenu.style.top = top + "px";
+    ctxMenu.style.left = left + "px";
+    ctxMenu.style.display = "flex";
+}
+
+function hideCtxMenu() { ctxMenu.style.display = "none"; }
+
+async function execCmd(cmd) {
+    const editor = tabs[currentTab].editor;
+    const text = editor.getSelection();
+    if (cmd === 'copy') {
+        try { await navigator.clipboard.writeText(text); alert("已複製！"); } 
+        catch (err) { document.execCommand('copy'); alert("已複製 (Legacy)"); }
+    } else if (cmd === 'cut') {
+        try { await navigator.clipboard.writeText(text); editor.replaceSelection(""); alert("已剪下！"); } 
+        catch (err) { document.execCommand('cut'); }
+    } else if (cmd === 'delete') {
+        editor.replaceSelection(""); 
+    }
+    hideCtxMenu();
+}
+
+document.addEventListener('mousedown', (e) => {
+    if (ctxMenu.contains(e.target)) return;
+    if (editorWrapper.contains(e.target)) return;
+    hideCtxMenu();
+});
+
+lineEndInput.addEventListener("keydown", function(e) { if (e.key === "Enter") applyLineSelection(); });
+lineStartInput.addEventListener("keydown", function(e) { if (e.key === "Enter") lineEndInput.focus(); });
+// --- 自動清理網址列程式碼 ---
+window.addEventListener('load', function() {
+    try {
+        // 使用 replaceState 覆蓋當前網址，"./" 代表當前目錄，即隱藏檔名
+        // 注意：若是直接點兩下開啟 (file://)，部分瀏覽器可能會因安全限制擋下此動作
+        window.history.replaceState(null, document.title, "./");
+    } catch (e) {
+        console.log("網址列清理受瀏覽器安全限制");
+    }
+});
+</script>
 </body>
 </html>
