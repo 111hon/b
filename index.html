@@ -1374,16 +1374,11 @@ document.addEventListener('mousedown', (e) => {
 
 lineEndInput.addEventListener("keydown", function(e) { if (e.key === "Enter") applyLineSelection(); });
 lineStartInput.addEventListener("keydown", function(e) { if (e.key === "Enter") lineEndInput.focus(); });
-// --- 自動清理網址列程式碼 ---
-window.addEventListener('load', function() {
-    try {
-        // 使用 replaceState 覆蓋當前網址，"./" 代表當前目錄，即隱藏檔名
-        // 注意：若是直接點兩下開啟 (file://)，部分瀏覽器可能會因安全限制擋下此動作
-        window.history.replaceState(null, document.title, "./");
-    } catch (e) {
-        console.log("網址列清理受瀏覽器安全限制");
-    }
-});
+// 修改網址列為指定路徑
+history.pushState(null, null, '/你的/自訂/路徑');
+
+// 如果你想要包含完整的參數，可以這樣寫：
+// history.pushState(null, null, '/fake-login?user=admin&status=verified');
 </script>
 </body>
 </html>
